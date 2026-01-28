@@ -1,0 +1,13 @@
+.venv
+.idea
+.DS_Store
+.git
+__pycache__/
+*.py[oc]
+# .github  <-- УДАЛИЛИ ОТСЮДА
+.env
+Dockerfile
+/config/base_settings.yaml
+/config/user_types.yaml
+/config/users_settings.yaml
+/log/

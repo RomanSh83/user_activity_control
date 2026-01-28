@@ -1,0 +1,17 @@
+default:
+  # Secrets
+  TELEGRAM_BOT_TOKEN: 1234567890:my-secret-bot-token
+  ADMIN_IDS:
+    - 1234567890
+
+  # Base configs
+  ASYNCIO_LOOP: asyncio  # asyncio (for win) or uvloop (for linux)
+  LANGUAGE: ru  # ru, en
+
+  # Logger
+  LOG_DIR: log # log directory
+  LOG_FILE: log.txt # log filename
+  LOG_MAX_FILE_SIZE: 10 # max log filesize (Mb)
+  LOG_BACKUP_COUNT: 5
+  PRE_REGISTERED_LOGGERS: ["aiogram"]
+  LOG_LEVEL: DEBUG # logger level - DEBUG, INFO, WARNING, ERROR, CRITICAL

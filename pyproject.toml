@@ -1,0 +1,43 @@
+[project]
+name = "user_activity_control"
+version = "0.1.0"
+description = "User activity control Telegram Bot"
+readme = "README.md"
+authors = [
+    { name = "Roman Sh", email = "shabrovra@yandex.ru" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "aiogram>=3.24.0",
+    "dynaconf>=3.2.12",
+    "pyyaml>=6.0.3",
+]
+
+[project.scripts]
+app = "user_activity_control.runner:run"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+lint.select = [
+    "E", # PEP8 ошибки (например, отступы)
+    "F", # Pyflakes (неиспользуемый код)
+    "W", # Предупреждения
+    "I", # Сортировка импортов
+    "UP", # Современный Python (например, Union -> |)
+]
+line-length = 120
+indent-width = 4
+
+[tool.ruff.format]
+# Заменяет Black: использует двойные кавычки и стандартные отступы
+quote-style = "double"
+indent-style = "space"
+
+[dependency-groups]
+lint = [
+    "pre-commit>=4.3.0",
+    "ruff>=0.14.0",
+]

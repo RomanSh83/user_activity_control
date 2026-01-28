@@ -1,0 +1,9 @@
+from aiogram import Router
+
+from user_activity_control.bot_logic.handlers.service_handlers.service_events_handlers import events_router
+from user_activity_control.bot_logic.handlers.service_handlers.service_exceptions_handler import exceptions_router
+
+service_router = Router()
+
+service_router.include_router(events_router)
+service_router.include_router(exceptions_router)

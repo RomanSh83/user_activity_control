@@ -1,0 +1,9 @@
+from aiogram import Router
+
+from user_activity_control.bot_logic.handlers.chat_handlers.chat_activity_handlers import chat_activity_router
+from user_activity_control.bot_logic.handlers.chat_handlers.chat_command_handlers import chat_command_router
+
+chat_router = Router()
+
+chat_router.include_router(chat_command_router)
+chat_router.include_router(chat_activity_router)

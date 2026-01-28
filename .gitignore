@@ -1,0 +1,17 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.idea
+.DS_Store
+.env
+/config/base_settings.yaml
+/config/user_types.yaml
+/config/users_settings.yaml
+/log/

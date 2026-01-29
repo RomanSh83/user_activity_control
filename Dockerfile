@@ -8,6 +8,5 @@ RUN uv sync --frozen --no-install-project --no-dev
 # Переменные для корректного вывода логов
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV PATH="/app/.venv/bin:$PATH"
 
 COPY . .

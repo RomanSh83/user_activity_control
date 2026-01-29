@@ -2,11 +2,9 @@ services:
   user_activity_control:
     image: ghcr.io/romansh83/user_activity_control:latest
     container_name: user_activity_control
+    environment:
+      - PYTHONPATH=/app/src
     volumes:
-      - user_activity_control_settings:/app/config
-      - user_activity_control_app_data:/app/app_data
-    command: python -m user_activity_control.runner
-
-volumes:
-  user_activity_control_settings:
-  user_activity_control_app_data:
+      - ./config:/app/config
+      - ./app_data:/app/app_data
+    command: uv run app

@@ -2,8 +2,6 @@ services:
   user_activity_control:
     image: ghcr.io/romansh83/user_activity_control:latest
     container_name: user_activity_control
-    environment:
-      - PYTHONPATH=/app/src
     volumes:
       - ./config:/app/config
       - ./app_data:/app/app_data

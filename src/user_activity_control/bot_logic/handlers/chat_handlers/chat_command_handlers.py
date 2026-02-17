@@ -1,4 +1,4 @@
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
@@ -13,7 +13,7 @@ chat_command_router = Router()
 logger = get_logger(__name__)
 
 
-@chat_command_router.message(Command(ChatCommandEnum.ABOUT), ChatUserFilter())
+@chat_command_router.message(Command(ChatCommandEnum.ABOUT), F.chat.type.in_({"group", "supergroup"}), ChatUserFilter())
 async def unique_chat_about_handler(
     message: Message, _: Locale, user_activity_service: UserActivityService, control_user: ControlUserSchema
 ) -> None:
@@ -23,6 +23,6 @@ async def unique_chat_about_handler(
     await user_activity_service.proceed_activity(message=message, control_user=control_user, is_command=True)
 
 
-@chat_command_router.message(Command(ChatCommandEnum.ABOUT))
+@chat_command_router.message(Command(ChatCommandEnum.ABOUT), F.chat.type.in_({"group", "supergroup"}))
 async def common_chat_about_handler(message: Message, _: Locale) -> None:
     await message.answer(_("command_chat_about"))

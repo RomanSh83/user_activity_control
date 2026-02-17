@@ -1,7 +1,8 @@
-from aiogram import Bot, Router
+from aiogram import Router
 from aiogram.exceptions import TelegramForbiddenError
 from aiogram.fsm.context import FSMContext
 from aiogram.types import ErrorEvent
+from aiogram.utils.formatting import Bold, Pre, Text
 
 from user_activity_control.core.config import get_logger
 
@@ -10,13 +11,16 @@ logger = get_logger(__name__)
 
 
 @exceptions_router.error()
-async def exceptions_handler(event: ErrorEvent, bot: Bot, admins: set[int], state: FSMContext):
+async def exceptions_handler(event: ErrorEvent, admins: set[int], state: FSMContext):
     logger.error("Error: %s", event.exception, exc_info=True)
     await state.clear()
 
+    message_content = Text(
+        Bold("Ошибка при работе бота!"), Text("\n\nПри работе бота произошла ошибка:"), Pre(str(event.exception))
+    )
     for admin_id in admins:
         try:
-            await bot.send_message(admin_id, f"Error: {event.exception}")
+            await event.update.bot.send_message(admin_id, **message_content.as_kwargs())
         except TelegramForbiddenError:
             logger.warning(
                 f"Failed to send notification to admin {admin_id}: bot is blocked or conversation not started."

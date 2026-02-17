@@ -9,7 +9,7 @@ from user_activity_control.bot_logic.schemas.control_user_schemas import Control
 from user_activity_control.bot_logic.services.text_composer_service import TextComposerService
 from user_activity_control.core.base.singleton import Singleton
 from user_activity_control.core.config import get_logger
-from user_activity_control.infra.storage.in_memory_storage import ActivityStorage
+from user_activity_control.infra.bot_storage.in_memory_storage import ActivityStorage
 
 
 class UserActivityService(Singleton):
@@ -41,7 +41,7 @@ class UserActivityService(Singleton):
     async def _update_last_activity(self, user_id: int, action_timestamp: datetime, task: asyncio.Task | None) -> None:
         self.storage.push_data(
             key=user_id,
-            value={ActivityKeysEnum.ACTIVITY_TIMESTAMP: action_timestamp.timestamp(), ActivityKeysEnum.TASK_ID: task},
+            value={ActivityKeysEnum.ACTIVITY_TIMESTAMP: action_timestamp.timestamp(), ActivityKeysEnum.TASK: task},
         )
 
     async def proceed_activity(
@@ -69,15 +69,19 @@ class UserActivityService(Singleton):
                 message=message, control_user=control_user, string_type=StringsTypesEnum.ALARM.value
             )
 
-        # Если время меньше выдержки и есть задание на отбой - отменяем его
-        elif current_task := last_activity_data[ActivityKeysEnum.TASK_ID]:
+        # Если время меньше выдержки и есть незавершенное задание на отбой - отменяем его
+        elif not last_activity_data[ActivityKeysEnum.TASK].done():
             msg = f"User: {control_user.id}. New activity detected: current task cancelled, new task assigned."
             self.logger.debug(msg=msg)
-            current_task.cancel(msg=msg)
+            last_activity_data[ActivityKeysEnum.TASK].cancel(msg=msg)
 
-        # Создаем новое задание на отбой
-        task = await self._create_stand_down_task(
-            message=message, control_user=control_user, string_type=StringsTypesEnum.STAND_DOWN.value
-        )
+        # Если это первая активность и записей в хранилище нет или нет активной задачи на отбой:
+        if not last_activity_data or last_activity_data[ActivityKeysEnum.TASK].done():
+            task = await self._create_stand_down_task(
+                message=message, control_user=control_user, string_type=StringsTypesEnum.STAND_DOWN.value
+            )
+        else:  # иначе - оставляем активную задачу
+            task = last_activity_data[ActivityKeysEnum.TASK]
+
         # Обновляем информацию в хранилище
         await self._update_last_activity(action_timestamp=datetime.now(UTC), user_id=control_user.id, task=task)

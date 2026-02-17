@@ -7,7 +7,7 @@ __pycache__/
 # .github  <-- УДАЛИЛИ ОТСЮДА
 .env
 Dockerfile
-/config/base_settings.yaml
-/config/user_types.yaml
-/config/users_settings.yaml
+/config/settings.yaml
+/app_data/users_config/user_types.yaml
+/app_data/users_config/users_settings.yaml
 /log/

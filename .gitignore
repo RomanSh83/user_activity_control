@@ -11,7 +11,9 @@ wheels/
 .idea
 .DS_Store
 .env
-/config/base_settings.yaml
-/config/user_types.yaml
-/config/users_settings.yaml
+/config/settings.yaml
+/app_data/users_config/user_types.yaml
+/app_data/users_config/users_settings.yaml
 /log/
+/app_data/strings/
+/app_data/users_config/

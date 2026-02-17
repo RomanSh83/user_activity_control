@@ -5,5 +5,6 @@ class ChatCommandEnum(str, Enum):
     ABOUT = "about"
 
 
-class PrivateCommandEnum(str, Enum):
+class AdminCommandEnum(str, Enum):
+    ABOUT = "about"
     START = "start"

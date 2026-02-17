@@ -3,7 +3,7 @@ from typing import Any
 from aiogram.filters import BaseFilter
 from aiogram.types import CallbackQuery, Message
 
-from user_activity_control.bot_logic.enums.user_settings_enums import UserSettingsEnum
+from user_activity_control.bot_logic.enums.entity_enums import UserSettingsEnum
 from user_activity_control.bot_logic.schemas.control_user_schemas import ControlUserSchema
 
 

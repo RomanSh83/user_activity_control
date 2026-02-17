@@ -1,0 +1,11 @@
+from aiogram import Router
+
+from user_activity_control.bot_logic.handlers.admin_handlers.admin_category_handlers import admin_category_router
+from user_activity_control.bot_logic.handlers.admin_handlers.admin_command_handlers import admin_command_router
+from user_activity_control.bot_logic.handlers.admin_handlers.admin_user_handlers import admin_user_router
+
+admin_router = Router()
+
+admin_router.include_router(admin_command_router)
+admin_router.include_router(admin_category_router)
+admin_router.include_router(admin_user_router)

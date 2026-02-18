@@ -431,7 +431,7 @@ async def remove_category_handler(
     callback: CallbackQuery,
     state: FSMContext,
     category_service: CategoryService,
-    user_settings: dict[str, dict[str, Any]],
+    users: dict[str, dict[str, Any]],
     user_service: UserService,
     state_service: StateService,
     keyboard_generator: KeyboardGenerator,
@@ -442,7 +442,7 @@ async def remove_category_handler(
     fsm_data = await state.get_data()
     category = CategorySchema(**fsm_data["category"])
 
-    related_users = [user_id for user_id in user_settings if user_settings[user_id]["category"] == category.slug]
+    related_users = [user_id for user_id in users if users[user_id]["category"] == category.slug]
     if len(related_users):
         user_service.remove_users(user_ids=related_users)
 

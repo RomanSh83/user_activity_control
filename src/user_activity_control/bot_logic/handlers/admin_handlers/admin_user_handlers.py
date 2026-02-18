@@ -40,7 +40,7 @@ async def list_users_handler(
     callback: CallbackQuery,
     state: FSMContext,
     settings: Dynaconf,
-    user_settings: dict[str, dict[str, Any]],
+    users: dict[str, dict[str, Any]],
     keyboard_generator: KeyboardGenerator,
     user_service: UserService,
     message_service: MessageService,
@@ -49,7 +49,7 @@ async def list_users_handler(
     await callback.answer()
 
     limit = settings.PAGINATION_LIMIT
-    users_total = len(user_settings)
+    users_total = len(users)
     callback_data = NavigatorCallbackFactory(page=0, total=users_total, entity=NavigatorEntityEnum.USERS)
     current_users = user_service.get_users(offset=callback_data.page * limit, limit=limit)
     back_callback_str = AdminMenuCallbackFactory().pack()

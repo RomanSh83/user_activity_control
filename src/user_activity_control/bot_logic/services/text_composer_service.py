@@ -3,7 +3,8 @@ import random
 from user_activity_control.bot_logic.enums.strings_type_enums import StringsTypesEnum
 from user_activity_control.bot_logic.schemas.control_user_schemas import ControlUserSchema
 from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.core.config import get_base_dir, get_categories, get_logger, get_strings
+from user_activity_control.core.config import get_base_dir, get_logger
+from user_activity_control.infra.app_data.app_data import get_categories, get_strings
 
 
 class TextComposerService(Singleton):

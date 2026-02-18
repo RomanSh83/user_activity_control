@@ -10,13 +10,8 @@ from user_activity_control.bot_logic.services.text_composer_service import TextC
 from user_activity_control.bot_logic.services.user_activity_service import UserActivityService
 from user_activity_control.bot_logic.validators.category_validators import CategoryValidator
 from user_activity_control.bot_logic.validators.user_validators import UserValidator
-from user_activity_control.core.config import (
-    get_admins,
-    get_base_dir,
-    get_categories,
-    get_settings,
-    get_user_settings,
-)
+from user_activity_control.core.config import get_admins, get_base_dir, get_settings
+from user_activity_control.infra.app_data.app_data import get_categories, get_users
 from user_activity_control.infra.bot_storage.in_memory_storage import ActivityStorage
 from user_activity_control.infra.locale.locale_utils import get_translate_string
 
@@ -33,7 +28,7 @@ class BotCore:
         message_service=MessageService(),
         state_service=StateService(),
         text_composer=TextComposerService(),
-        user_settings=get_user_settings(),
+        users=get_users(),
         user_service=UserService(),
         user_validator=UserValidator(),
         user_activity_service=UserActivityService(storage=ActivityStorage(), text_composer=TextComposerService()),

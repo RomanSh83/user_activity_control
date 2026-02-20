@@ -1,5 +1,5 @@
+import uuid
 from pathlib import Path
-from typing import Any
 
 from aiogram import F, Router
 from aiogram.filters import StateFilter
@@ -11,13 +11,18 @@ from user_activity_control.bot_logic.callback_classes.category_callbacks import 
 from user_activity_control.bot_logic.callback_classes.common_menu_callbacks import (
     AdminMenuCallbackFactory,
     ConfirmMenuCallbackFactory,
-    NavigatorCallbackFactory,
     SkipMenuCallbackFactory,
 )
-from user_activity_control.bot_logic.enums.menu_enums import MenuActionEnum, NavigatorEntityEnum
+from user_activity_control.bot_logic.enums.entity_enums import CategoryEnum
+from user_activity_control.bot_logic.enums.menu_enums import MenuActionEnum
 from user_activity_control.bot_logic.filters.permission_filters import AdminFilter
 from user_activity_control.bot_logic.keyboards.keyboard_generator import KeyboardGenerator
-from user_activity_control.bot_logic.schemas.category_schemas import CategorySchema
+from user_activity_control.bot_logic.schemas.category_schemas import (
+    CategoriesSchema,
+    CategoryParamsUpdateSchema,
+    CategorySchema,
+)
+from user_activity_control.bot_logic.schemas.user_schemas import UsersSchema
 from user_activity_control.bot_logic.services.admin_services.categories_services import CategoryService
 from user_activity_control.bot_logic.services.admin_services.users_services import UserService
 from user_activity_control.bot_logic.services.bot_services.send_message_service import MessageService
@@ -29,6 +34,7 @@ from user_activity_control.bot_logic.states.category_states import (
 )
 from user_activity_control.bot_logic.validators.category_validators import CategoryValidator
 from user_activity_control.core.config import get_logger
+from user_activity_control.core.enums.enums import ExamplesFilesEnum, ProjectFoldersEnum, StringsFilesEnum
 from user_activity_control.infra.locale.types import Locale
 
 admin_category_router = Router()
@@ -38,12 +44,15 @@ admin_category_router.callback_query.filter(AdminFilter())
 logger = get_logger(__name__)
 
 
-@admin_category_router.callback_query(CategoryCallbackFactory.filter(F.action == MenuActionEnum.LIST))
+@admin_category_router.callback_query(
+    CategoryCallbackFactory.filter(F.action.in_((MenuActionEnum.LIST, MenuActionEnum.CHOICE_LIST)))
+)
 async def list_categories_handler(
     callback: CallbackQuery,
+    callback_data: CategoryCallbackFactory,
     state: FSMContext,
     settings: Dynaconf,
-    categories: dict[str, dict[str, Any]],
+    categories: CategoriesSchema,
     keyboard_generator: KeyboardGenerator,
     category_service: CategoryService,
     message_service: MessageService,
@@ -52,8 +61,11 @@ async def list_categories_handler(
     await callback.answer()
 
     limit = settings.PAGINATION_LIMIT
-    categories_total = len(categories)
-    callback_data = NavigatorCallbackFactory(page=0, total=categories_total, entity=NavigatorEntityEnum.CATEGORIES)
+
+    page = callback_data.page if callback_data.page else 0
+    categories_total = callback_data.total if callback_data.total else len(categories.root)
+
+    callback_data = CategoryCallbackFactory(action=callback_data.action, page=page, total=categories_total)
     current_categories = category_service.get_categories(offset=callback_data.page * limit, limit=limit)
     back_callback_str = AdminMenuCallbackFactory().pack()
     text = _("admin_category_list") if categories_total != 0 else _("admin_category_list_empty")
@@ -80,10 +92,10 @@ async def retrieve_category_handler(
 ) -> None:
     await callback.answer()
 
-    if callback_data.slug is None:
+    if callback_data.category_id is None:
         return
 
-    category = category_service.get_category(category_slug=callback_data.slug)
+    category = category_service.get_category(category_id=callback_data.category_id)
 
     await state.update_data(category=category.model_dump())
 
@@ -122,7 +134,9 @@ async def create_update_category_handler(
         category = CategorySchema(**fsm_data["category"])
         text = _("admin_category_update_name", name=category.name, max_length=settings.MAX_CATEGORY_NAME_LENGTH)
         kb = keyboard_generator.get_add_edit_keyboard(
-            back_callback_str=CategoryCallbackFactory(action=MenuActionEnum.RETRIEVE, slug=callback_data.slug).pack(),
+            back_callback_str=CategoryCallbackFactory(
+                action=MenuActionEnum.RETRIEVE, category_id=callback_data.category_id
+            ).pack(),
             skip_button=True,
         )
         new_state = UpdateCategoryStates.wait_name
@@ -146,11 +160,12 @@ async def create_update_category_name_handler(
     if callback:
         await callback.answer()
 
-    document = FSInputFile(base_dir / "app_data" / "examples" / "templates_example.yaml")
+    category_data = {}
+    document = FSInputFile(
+        base_dir / ProjectFoldersEnum.APP_DATA / ProjectFoldersEnum.EXAMPLES / ExamplesFilesEnum.TEMPLATES
+    )
 
     if await state.get_state() == CreateCategoryStates.wait_name:
-        slug = None
-        name = None
         back_callback_str = AdminMenuCallbackFactory().pack()
         text = _("admin_category_create_template_file")
         kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str)
@@ -159,10 +174,16 @@ async def create_update_category_name_handler(
     else:
         fsm_data = await state.get_data()
         current_category = CategorySchema(**fsm_data["category"])
-        slug = current_category.slug
-        name = current_category.name
-        back_callback_str = CategoryCallbackFactory(action=MenuActionEnum.RETRIEVE, slug=current_category.slug).pack()
-        file_path = base_dir / "app_data" / "strings" / current_category.slug / "templates.yaml"
+        back_callback_str = CategoryCallbackFactory(
+            action=MenuActionEnum.RETRIEVE, category_id=current_category.category_id
+        ).pack()
+        file_path = (
+            base_dir
+            / ProjectFoldersEnum.APP_DATA
+            / ProjectFoldersEnum.STRINGS
+            / current_category.category_id
+            / StringsFilesEnum.TEMPLATES
+        )
         if Path.exists(file_path):
             document = FSInputFile(file_path)
             text = _("admin_category_update_template_file_exists")
@@ -174,13 +195,15 @@ async def create_update_category_name_handler(
             new_state = UpdateCategoryStates.wait_required_template_file
 
     if isinstance(event, Message):
-        slug, name, validate_error_text = await category_validator.validate_name(name=event.text)
+        name, validate_error_text = await category_validator.validate_name(value=event.text)
         if validate_error_text:
             await message_service.send_message(event=event, state=state, text=validate_error_text, reply_markup=kb)
             return
+        category_data[CategoryEnum.NAME] = name
 
-    await state.update_data(category_data={"name": name, "slug": slug})
+    await state.update_data(category_data=category_data)
     await state.set_state(new_state)
+
     await message_service.send_message(event=event, state=state, document=document, text=text, reply_markup=kb)
 
 
@@ -214,7 +237,9 @@ async def create_update_category_templates_file_handler(
 
     fsm_data = await state.get_data()
     strings_data = {}
-    document = FSInputFile(base_dir / "app_data" / "examples" / "alarm_example.yaml")
+    document = FSInputFile(
+        base_dir / ProjectFoldersEnum.APP_DATA / ProjectFoldersEnum.EXAMPLES / ExamplesFilesEnum.ALARM
+    )
 
     if await state.get_state() == CreateCategoryStates.wait_template_file:
         back_callback_str = AdminMenuCallbackFactory().pack()
@@ -224,8 +249,16 @@ async def create_update_category_templates_file_handler(
 
     else:
         current_category = CategorySchema(**fsm_data["category"])
-        back_callback_str = CategoryCallbackFactory(action=MenuActionEnum.RETRIEVE, slug=current_category.slug).pack()
-        file_path = base_dir / "app_data" / "strings" / current_category.slug / "alarm.yaml"
+        back_callback_str = CategoryCallbackFactory(
+            action=MenuActionEnum.RETRIEVE, category_id=current_category.category_id
+        ).pack()
+        file_path = (
+            base_dir
+            / ProjectFoldersEnum.APP_DATA
+            / ProjectFoldersEnum.STRINGS
+            / current_category.category_id
+            / StringsFilesEnum.ALARM
+        )
         if Path.exists(file_path):
             document = FSInputFile(file_path)
             text = _("admin_category_update_alarm_file_exists")
@@ -268,7 +301,9 @@ async def create_update_category_alarm_file_handler(
 
     fsm_data = await state.get_data()
     strings_data = fsm_data.get("strings_data")
-    document = FSInputFile(base_dir / "app_data" / "examples" / "stand_down_example.yaml")
+    document = FSInputFile(
+        base_dir / ProjectFoldersEnum.APP_DATA / ProjectFoldersEnum.EXAMPLES / ExamplesFilesEnum.STAND_DOWN
+    )
 
     if await state.get_state() == CreateCategoryStates.wait_alarm_file:
         back_callback_str = AdminMenuCallbackFactory().pack()
@@ -278,8 +313,16 @@ async def create_update_category_alarm_file_handler(
 
     else:
         current_category = CategorySchema(**fsm_data["category"])
-        back_callback_str = CategoryCallbackFactory(action=MenuActionEnum.RETRIEVE, slug=current_category.slug).pack()
-        file_path = base_dir / "app_data" / "strings" / current_category.slug / "stand_down.yaml"
+        back_callback_str = CategoryCallbackFactory(
+            action=MenuActionEnum.RETRIEVE, category_id=current_category.category_id
+        ).pack()
+        file_path = (
+            base_dir
+            / ProjectFoldersEnum.APP_DATA
+            / ProjectFoldersEnum.STRINGS
+            / current_category.category_id
+            / StringsFilesEnum.STAND_DOWN
+        )
         if Path.exists(file_path):
             document = FSInputFile(file_path)
             text = _("admin_category_update_stand_down_file_exists")
@@ -321,7 +364,9 @@ async def create_update_category_stand_down_file_handler(
         await callback.answer()
     fsm_data = await state.get_data()
     strings_data = fsm_data.get("strings_data")
-    document = FSInputFile(base_dir / "app_data" / "examples" / "command_example.yaml")
+    document = FSInputFile(
+        base_dir / ProjectFoldersEnum.APP_DATA / ProjectFoldersEnum.EXAMPLES / ExamplesFilesEnum.COMMAND
+    )
 
     if await state.get_state() == CreateCategoryStates.wait_stand_down_file:
         back_callback_str = AdminMenuCallbackFactory().pack()
@@ -331,8 +376,16 @@ async def create_update_category_stand_down_file_handler(
 
     else:
         current_category = CategorySchema(**fsm_data["category"])
-        back_callback_str = CategoryCallbackFactory(action=MenuActionEnum.RETRIEVE, slug=current_category.slug).pack()
-        file_path = base_dir / "app_data" / "strings" / current_category.slug / "command.yaml"
+        back_callback_str = CategoryCallbackFactory(
+            action=MenuActionEnum.RETRIEVE, category_id=current_category.category_id
+        ).pack()
+        file_path = (
+            base_dir
+            / ProjectFoldersEnum.APP_DATA
+            / ProjectFoldersEnum.STRINGS
+            / current_category.category_id
+            / StringsFilesEnum.COMMAND
+        )
         if Path.exists(file_path):
             document = FSInputFile(file_path)
             text = _("admin_category_update_command_file_exists")
@@ -371,17 +424,21 @@ async def create_update_category_command_file_handler(
     _: Locale,
 ) -> None:
     fsm_data = await state.get_data()
-    category_data = CategorySchema(**fsm_data["category_data"])
-    strings_data = fsm_data.get("strings_data")
+    category_data = fsm_data["category_data"]
+    strings_data = fsm_data["strings_data"]
 
     if await state.get_state() == CreateCategoryStates.wait_command_file:
+        category_id = str(uuid.uuid4())
         back_callback_str = AdminMenuCallbackFactory().pack()
-        text = _("admin_category_created_successfully", name=category_data.name)
+        text = _("admin_category_created_successfully", name=category_data[CategoryEnum.NAME])
         kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
     else:
         current_category = CategorySchema(**fsm_data["category"])
-        back_callback_str = CategoryCallbackFactory(action=MenuActionEnum.RETRIEVE, slug=current_category.slug).pack()
-        text = _("admin_category_updated_successfully", name=category_data.name)
+        category_id = current_category.category_id
+        back_callback_str = CategoryCallbackFactory(
+            action=MenuActionEnum.RETRIEVE, category_id=current_category.category_id
+        ).pack()
+        text = _("admin_category_updated_successfully", name=current_category.name)
         kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
 
     if isinstance(event, Message):
@@ -392,10 +449,14 @@ async def create_update_category_command_file_handler(
         strings_data["command"] = command
 
     if await state.get_state() == CreateCategoryStates.wait_command_file:
-        category_service.create_category(category_data=category_data, strings_data=strings_data)
+        category_service.create_category(
+            category=CategorySchema(category_id=category_id, **fsm_data["category_data"]), strings_data=strings_data
+        )
     else:
         category_service.update_category(
-            category_slug=current_category.slug, category_data=category_data, strings_data=strings_data
+            category_id=category_id,
+            category_data=CategoryParamsUpdateSchema(**category_data),
+            strings_data=strings_data,
         )
 
     await state_service.safe_clear(state=state)
@@ -413,7 +474,7 @@ async def remove_category_request_handler(
 
     fsm_data = await state.get_data()
     category = CategorySchema(**fsm_data["category"])
-    back_callback_str = CategoryCallbackFactory(action=MenuActionEnum.RETRIEVE, slug=category.slug).pack()
+    back_callback_str = CategoryCallbackFactory(action=MenuActionEnum.RETRIEVE, category_id=category.category_id).pack()
 
     text = _("admin_category_remove_request", name=category.name)
 
@@ -431,9 +492,8 @@ async def remove_category_handler(
     callback: CallbackQuery,
     state: FSMContext,
     category_service: CategoryService,
-    users: dict[str, dict[str, Any]],
+    users: UsersSchema,
     user_service: UserService,
-    state_service: StateService,
     keyboard_generator: KeyboardGenerator,
     _: Locale,
 ) -> None:
@@ -442,11 +502,11 @@ async def remove_category_handler(
     fsm_data = await state.get_data()
     category = CategorySchema(**fsm_data["category"])
 
-    related_users = [user_id for user_id in users if users[user_id]["category"] == category.slug]
+    related_users = [user_id for user_id in users.root if users.root[user_id].category == category.category_id]
     if len(related_users):
         user_service.remove_users(user_ids=related_users)
 
-    category_service.remove_category(category_slug=category.slug)
+    category_service.remove_category(category_id=category.category_id)
 
     await callback.message.answer(
         text=_("admin_category_successfully_removed", name=category.name),

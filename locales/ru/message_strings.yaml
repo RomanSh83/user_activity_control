@@ -280,7 +280,7 @@ validator_category_name_regex: |
   Имя категории может содержать только Русские и Латинские буквы, цифры, пробелы.
   Попробуйте снова:
 
-validator_category_slug_exists: |
+validator_category_name_exists: |
   <b>Имя категории:</b>
 
   Категория с указанным именем уже существует.
@@ -316,6 +316,10 @@ validator_strings_file_invalid_structure: |
 
 validator_file_download_error: |
   Произошла непредвиденная ошибка при загрузке отправленного файла.
+  Попробуйте снова или повторите попытку позднее:
+
+validator_file_upload_error: |
+  Произошла непредвиденная ошибка при отправке файла.
   Попробуйте снова или повторите попытку позднее:
 
 validator_user_id_not_integer: |

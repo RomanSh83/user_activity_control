@@ -3,7 +3,6 @@ import re
 import yaml
 from aiogram.exceptions import DetailedAiogramError
 from aiogram.types import Message
-from slugify import slugify
 
 from user_activity_control.bot_logic.enums.strings_type_enums import TemplatesEnum
 from user_activity_control.bot_logic.services.admin_services.categories_services import CategoryService
@@ -19,19 +18,17 @@ class CategoryValidator(Singleton):
         self.category_service = CategoryService()
         self._ = get_translate_string
 
-    async def validate_name(self, name: str) -> tuple[None, None, str] | tuple[str, str, None]:
-        if len(name) > get_settings().MAX_CATEGORY_NAME_LENGTH:
+    async def validate_name(self, value: str) -> tuple[None, str] | tuple[str, None]:
+        if len(value) > get_settings().MAX_CATEGORY_NAME_LENGTH:
             return (
-                None,
                 None,
                 self._("validator_category_name_length", max_length=get_settings().MAX_CATEGORY_NAME_LENGTH),
             )
-        if not re.fullmatch(pattern="^[a-zA-Zа-яА-ЯёЁ0-9 ]+$", string=name):
-            return None, None, self._("validator_category_name_regex")
-        slug = slugify(name).lower()
-        if self.category_service.exists_category(category_slug=slug):
-            return None, None, self._("validator_category_slug_exists")
-        return slug, name.capitalize(), None
+        if not re.fullmatch(pattern="^[a-zA-Zа-яА-ЯёЁ0-9 ]+$", string=value):
+            return None, self._("validator_category_name_regex")
+        if self.category_service.exists_category_name(category_name=value.capitalize()):
+            return None, self._("validator_category_name_exists")
+        return value.capitalize(), None
 
     async def validate_yaml_file(self, message: Message) -> tuple[None, str] | tuple[dict | list, None]:
         if not message.document:

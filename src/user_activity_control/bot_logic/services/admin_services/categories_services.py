@@ -1,6 +1,6 @@
 from typing import Any
 
-from user_activity_control.bot_logic.schemas.category_schemas import CategorySchema
+from user_activity_control.bot_logic.schemas.category_schemas import CategoryParamsUpdateSchema, CategorySchema
 from user_activity_control.core.base.singleton import Singleton
 from user_activity_control.core.config import get_logger
 from user_activity_control.infra.app_data.app_data import get_app_data, get_categories
@@ -12,46 +12,35 @@ class CategoryService(Singleton):
         self.app_data = get_app_data()
         self.categories = get_categories()
 
-    def _save_strings(self, category_slug: str, strings_data: dict[str, Any]) -> None:
-        self.app_data.save_strings(category_slug=category_slug, strings_data=strings_data)
+    def _save_strings(self, category_id: str, strings_data: dict[str, Any]) -> None:
+        self.app_data.save_strings(category_id=category_id, strings_data=strings_data)
 
-    def _rename_and_update_strings(
-        self, old_category_slug: str, new_category_slug: str, strings_data: dict[str, Any]
-    ) -> None:
-        self.app_data.rename_and_update_strings(
-            old_category_slug=old_category_slug, new_category_slug=new_category_slug, strings_data=strings_data
-        )
+    def _update_strings(self, category_id: str, strings_data: dict[str, Any]) -> None:
+        self.app_data.update_strings(category_id=category_id, strings_data=strings_data)
 
     def get_categories(self, offset: int, limit: int) -> list[CategorySchema]:
-        categories_keys = sorted(self.categories.keys())
-        current_categories_keys = (
-            categories_keys[offset:]
-            if offset + limit - 1 > len(self.categories)
-            else categories_keys[offset : offset + limit]
-        )
-        return [self.get_category(category_slug=key) for key in current_categories_keys]
+        categories_keys = list(self.categories.root.keys())
+        return [self.get_category(category_id=key) for key in categories_keys[offset : offset + limit]]
 
-    def get_category(self, category_slug: str) -> CategorySchema:
-        return CategorySchema(slug=category_slug, name=self.categories[category_slug]["name"])
+    def get_category(self, category_id: str) -> CategorySchema:
+        return CategorySchema(category_id=category_id, name=self.categories.root[category_id].name)
 
-    def exists_category(self, category_slug: str) -> bool:
-        return category_slug in self.categories
+    def exists_category_name(self, category_name: str) -> bool:
+        for category in self.categories.root.values():
+            if category.name == category_name:
+                return True
+        return False
 
-    def create_category(self, category_data: CategorySchema, strings_data: dict[str, Any]) -> None:
-        self.app_data.save_category(category_data=category_data)
-        self._save_strings(category_slug=category_data.slug, strings_data=strings_data)
+    def create_category(self, category: CategorySchema, strings_data: dict[str, Any]) -> None:
+        self.app_data.save_category(category=category)
+        self._save_strings(category_id=category.category_id, strings_data=strings_data)
 
-    def update_category(self, category_slug: str, category_data: CategorySchema, strings_data: dict[str, Any]) -> None:
-        if category_data.slug == category_slug:
-            self.app_data.save_category(category_data=category_data)
-            self._save_strings(category_slug=category_data.slug, strings_data=strings_data)
-        else:
-            self.app_data.remove_category(category_slug=category_slug)
-            self.app_data.save_category(category_data=category_data)
-            self._rename_and_update_strings(
-                old_category_slug=category_slug, new_category_slug=category_data.slug, strings_data=strings_data
-            )
+    def update_category(
+        self, category_id: str, category_data: CategoryParamsUpdateSchema, strings_data: dict[str, Any]
+    ) -> None:
+        self.app_data.update_category(category_id=category_id, category_data=category_data)
+        self._update_strings(category_id=category_id, strings_data=strings_data)
 
-    def remove_category(self, category_slug: str) -> None:
-        self.app_data.remove_category(category_slug=category_slug)
-        self.app_data.remove_strings(category_slug=category_slug)
+    def remove_category(self, category_id: str) -> None:
+        self.app_data.remove_category(category_id=category_id)
+        self.app_data.remove_strings(category_id=category_id)

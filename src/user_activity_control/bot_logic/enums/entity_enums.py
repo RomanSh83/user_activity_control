@@ -7,11 +7,11 @@ class EntityEnum(str, Enum):
 
 
 class CategoryEnum(str, Enum):
-    SLUG = "slug"
+    CATEGORY_ID = "category_id"
     NAME = "name"
 
 
-class UserSettingsEnum(str, Enum):
+class UsersEnum(str, Enum):
     USER_ID = "user_id"
     CATEGORY = "category"
     CHAT_IDS = "chat_ids"

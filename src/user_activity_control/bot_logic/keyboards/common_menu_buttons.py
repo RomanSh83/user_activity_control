@@ -3,14 +3,15 @@ from copy import deepcopy
 from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from user_activity_control.bot_logic.callback_classes.category_callbacks import CategoryCallbackFactory
 from user_activity_control.bot_logic.callback_classes.common_menu_callbacks import (
     AdminMenuCallbackFactory,
     ConfirmMenuCallbackFactory,
     ExitMenuCallbackFactory,
-    NavigatorCallbackFactory,
     NoopCallbackFactory,
     SkipMenuCallbackFactory,
 )
+from user_activity_control.bot_logic.callback_classes.user_callbacks import UserCallbackFactory
 from user_activity_control.core.config import get_logger, get_settings
 from user_activity_control.infra.locale.locale_utils import get_translate_string
 
@@ -25,7 +26,7 @@ class CommonMenuButtons:
     def get_pagination_buttons(
         cls,
         builder: InlineKeyboardBuilder,
-        callback_data: NavigatorCallbackFactory,
+        callback_data: CategoryCallbackFactory | UserCallbackFactory,
     ) -> InlineKeyboardBuilder:
         if callback_data.total <= cls.page_limit:
             return builder

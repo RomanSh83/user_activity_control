@@ -2,7 +2,6 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from user_activity_control.bot_logic.callback_classes.category_callbacks import CategoryCallbackFactory
-from user_activity_control.bot_logic.callback_classes.common_menu_callbacks import NavigatorCallbackFactory
 from user_activity_control.bot_logic.callback_classes.user_callbacks import UserCallbackFactory, UserUniqueReactions
 from user_activity_control.bot_logic.enums.menu_enums import MenuActionEnum
 from user_activity_control.bot_logic.keyboards.common_menu_buttons import CommonMenuButtons
@@ -43,24 +42,26 @@ class KeyboardGenerator(Singleton):
     def get_category_list_keyboard(
         self,
         categories: list[CategorySchema],
-        callback_data: NavigatorCallbackFactory,
+        callback_data: CategoryCallbackFactory,
         skip_button: bool = False,
         back_callback_str: str | None = None,
     ) -> InlineKeyboardMarkup:
         builder = InlineKeyboardBuilder()
         action = (
-            callback_data.from_action if callback_data.from_action == MenuActionEnum.CHOICE else MenuActionEnum.RETRIEVE
+            callback_data.action.CHOICE
+            if callback_data.action == MenuActionEnum.CHOICE_LIST
+            else MenuActionEnum.RETRIEVE
         )
         for category in categories:
             builder.button(
                 text=category.name.capitalize(),
-                callback_data=CategoryCallbackFactory(action=action, slug=category.slug),
+                callback_data=CategoryCallbackFactory(action=action, category_id=category.category_id),
             )
         builder.adjust(1)
 
         self.common_buttons.get_pagination_buttons(builder=builder, callback_data=callback_data)
 
-        if callback_data.from_action != MenuActionEnum.CHOICE:
+        if callback_data.action == MenuActionEnum.LIST:
             builder.row(
                 InlineKeyboardButton(
                     text=self._("keyboard_create_category_button"),
@@ -84,13 +85,17 @@ class KeyboardGenerator(Singleton):
         builder.row(
             InlineKeyboardButton(
                 text=self._("keyboard_update_category_button"),
-                callback_data=CategoryCallbackFactory(action=MenuActionEnum.UPDATE, slug=category.slug).pack(),
+                callback_data=CategoryCallbackFactory(
+                    action=MenuActionEnum.UPDATE, category_id=category.category_id
+                ).pack(),
             )
         )
         builder.row(
             InlineKeyboardButton(
                 text=self._("keyboard_remove_category_button"),
-                callback_data=CategoryCallbackFactory(action=MenuActionEnum.REMOVE, slug=category.slug).pack(),
+                callback_data=CategoryCallbackFactory(
+                    action=MenuActionEnum.REMOVE, category_id=category.category_id
+                ).pack(),
             )
         )
 
@@ -141,7 +146,7 @@ class KeyboardGenerator(Singleton):
     def get_user_list_keyboard(
         self,
         users: list[UserSchema],
-        callback_data: NavigatorCallbackFactory,
+        callback_data: UserCallbackFactory,
         back_callback_str: str | None = None,
     ) -> InlineKeyboardMarkup:
         builder = InlineKeyboardBuilder()

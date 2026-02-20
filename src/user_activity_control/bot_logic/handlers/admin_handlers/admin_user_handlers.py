@@ -33,7 +33,9 @@ admin_user_router.callback_query.filter(AdminFilter())
 logger = get_logger(__name__)
 
 
-@admin_user_router.callback_query(UserCallbackFactory.filter(F.action == MenuActionEnum.LIST))
+@admin_user_router.callback_query(
+    UserCallbackFactory.filter(F.action.in_((MenuActionEnum.LIST, MenuActionEnum.RELATED_LIST)))
+)
 async def list_users_handler(
     callback: CallbackQuery,
     callback_data: UserCallbackFactory,
@@ -49,12 +51,25 @@ async def list_users_handler(
 
     limit = settings.PAGINATION_LIMIT
     page = callback_data.page if callback_data.page else 0
-    users_total = callback_data.total if callback_data.total else len(users.root)
 
-    callback_data = UserCallbackFactory(action=MenuActionEnum.LIST, page=page, total=users_total)
-    current_users = user_service.get_users(offset=callback_data.page * limit, limit=limit)
-    back_callback_str = AdminMenuCallbackFactory().pack()
-    text = _("admin_users_list") if users_total != 0 else _("admin_users_list_empty")
+    if callback_data.action == MenuActionEnum.RELATED_LIST:
+        user_ids = user_service.get_category_user_ids(category_id=callback_data.category_id)
+        users_total = len(user_ids) if callback_data.total is None else callback_data.total
+        current_users = user_service.get_users(user_ids=user_ids, offset=callback_data.page * limit, limit=limit)
+        callback_data = UserCallbackFactory(
+            action=MenuActionEnum.RELATED_LIST, page=page, total=users_total, category_id=callback_data.category_id
+        )
+        back_callback_str = CategoryCallbackFactory(
+            action=MenuActionEnum.RETRIEVE, category_id=callback_data.category_id
+        ).pack()
+        text = _("admin_users_list") if users_total != 0 else _("admin_category_users_list_empty")
+
+    else:
+        users_total = callback_data.total if callback_data.total else len(users.root)
+        current_users = user_service.get_users(offset=callback_data.page * limit, limit=limit)
+        callback_data = UserCallbackFactory(action=MenuActionEnum.LIST, page=page, total=users_total)
+        back_callback_str = AdminMenuCallbackFactory().pack()
+        text = _("admin_users_list") if users_total != 0 else _("admin_users_list_empty")
 
     await message_service.send_message(
         event=callback,

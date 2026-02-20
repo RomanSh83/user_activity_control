@@ -8,6 +8,7 @@ class UserCallbackFactory(CallbackData, prefix="user"):  # type: ignore
     uid: str | None = None
     page: int = 0
     total: int | None = None
+    category_id: str | None = None
 
 
 class UserUniqueReactions(CallbackData, prefix="user_unique_reactions"):  # type: ignore

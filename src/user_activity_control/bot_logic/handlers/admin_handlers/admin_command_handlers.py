@@ -34,5 +34,7 @@ async def admin_start_handler(
     _: Locale,
 ) -> None:
     await state_service.safe_clear(state=state)
+    await state_service.push_current_callback(state=state, callback_data=AdminMenuCallbackFactory())
+
     kb = keyboard_generator.get_admin_keyboard()
     await message_service.send_message(event=event, state=state, text=_("command_admin_start"), reply_markup=kb)

@@ -6,7 +6,6 @@ from dynaconf import Dynaconf
 
 from user_activity_control.bot_logic.callback_classes.category_callbacks import CategoryCallbackFactory
 from user_activity_control.bot_logic.callback_classes.common_menu_callbacks import (
-    AdminMenuCallbackFactory,
     ConfirmMenuCallbackFactory,
     SkipMenuCallbackFactory,
 )
@@ -45,31 +44,19 @@ async def list_users_handler(
     keyboard_generator: KeyboardGenerator,
     user_service: UserService,
     message_service: MessageService,
+    state_service: StateService,
     _: Locale,
 ) -> None:
     await callback.answer()
 
+    back_callback_str = await state_service.push_current_callback(state=state, callback_data=callback_data)
+
     limit = settings.PAGINATION_LIMIT
     page = callback_data.page if callback_data.page else 0
 
-    if callback_data.action == MenuActionEnum.RELATED_LIST:
-        user_ids = user_service.get_category_user_ids(category_id=callback_data.category_id)
-        users_total = len(user_ids) if callback_data.total is None else callback_data.total
-        current_users = user_service.get_users(user_ids=user_ids, offset=callback_data.page * limit, limit=limit)
-        callback_data = UserCallbackFactory(
-            action=MenuActionEnum.RELATED_LIST, page=page, total=users_total, category_id=callback_data.category_id
-        )
-        back_callback_str = CategoryCallbackFactory(
-            action=MenuActionEnum.RETRIEVE, category_id=callback_data.category_id
-        ).pack()
-        text = _("admin_users_list") if users_total != 0 else _("admin_category_users_list_empty")
-
-    else:
-        users_total = callback_data.total if callback_data.total else len(users.root)
-        current_users = user_service.get_users(offset=callback_data.page * limit, limit=limit)
-        callback_data = UserCallbackFactory(action=MenuActionEnum.LIST, page=page, total=users_total)
-        back_callback_str = AdminMenuCallbackFactory().pack()
-        text = _("admin_users_list") if users_total != 0 else _("admin_users_list_empty")
+    callback_data = UserCallbackFactory(action=MenuActionEnum.LIST, page=page, total=users_total)
+    current_users = user_service.get_users(offset=callback_data.page * limit, limit=limit)
+    text = _("admin_users_list") if users_total != 0 else _("admin_users_list_empty")
 
     await message_service.send_message(
         event=callback,
@@ -90,6 +77,7 @@ async def retrieve_user_handler(
     user_service: UserService,
     state: FSMContext,
     message_service: MessageService,
+    state_service: StateService,
     _: Locale,
 ) -> None:
     await callback.answer()
@@ -97,12 +85,12 @@ async def retrieve_user_handler(
     if callback_data.uid is None:
         return
 
+    back_callback_str = await state_service.push_current_callback(state=state, callback_data=callback_data)
+
     user = user_service.get_user(user_id=callback_data.uid)
     category = category_service.get_category(category_id=user.category)
 
     await state.update_data(user=user.model_dump())
-
-    back_callback_str = UserCallbackFactory(action=MenuActionEnum.LIST).pack()
 
     await message_service.send_message(
         event=callback,
@@ -126,16 +114,19 @@ async def create_user_id_request_handler(
     keyboard_generator: KeyboardGenerator,
     state: FSMContext,
     message_service: MessageService,
+    state_service: StateService,
     _: Locale,
 ) -> None:
     await callback.answer()
+
+    back_callback_str = await state_service.pull_previous_callback(state=state)
 
     await state.set_state(CreateUserStates.wait_id)
     await message_service.send_message(
         event=callback,
         state=state,
         text=_("admin_user_create_id"),
-        reply_markup=keyboard_generator.get_add_edit_keyboard(back_callback_str=AdminMenuCallbackFactory().pack()),
+        reply_markup=keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str),
     )
 
 
@@ -149,17 +140,20 @@ async def create_update_user_category_request_handler(
     categories: CategoriesSchema,
     category_service: CategoryService,
     message_service: MessageService,
+    state_service: StateService,
     user_validator: UserValidator,
     _: Locale,
 ) -> None:
     if isinstance(event, CallbackQuery):
         await event.answer()
 
+    back_callback_str = await state_service.pull_previous_callback(state=state)
+
     user_data = {}
     if isinstance(event, Message):
         user_id, validate_error_text = await user_validator.validate_id(value=event.text)
         if validate_error_text:
-            kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=AdminMenuCallbackFactory().pack())
+            kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str)
             await message_service.send_message(event=event, state=state, text=validate_error_text, reply_markup=kb)
             return
         user_data = {UsersEnum.USER_ID: user_id}
@@ -180,24 +174,22 @@ async def create_update_user_category_request_handler(
 
     if await state.get_state() == CreateUserStates.wait_id:
         text = _("admin_user_create_category")
-        kb = keyboard_generator.get_category_list_keyboard(
-            categories=current_categories,
-            callback_data=callback_data,
-            back_callback_str=AdminMenuCallbackFactory().pack(),
-        )
+        skip_button = False
         new_state = CreateUserStates.wait_category
     else:
         fsm_data = await state.get_data()
         user = UserSchema(**fsm_data["user"])
         category = category_service.get_category(category_id=user.category)
         text = _("admin_user_update_category", category_name=category.name)
-        kb = keyboard_generator.get_category_list_keyboard(
-            categories=current_categories,
-            callback_data=callback_data,
-            back_callback_str=UserCallbackFactory(action=MenuActionEnum.RETRIEVE, uid=user.user_id).pack(),
-            skip_button=True,
-        )
+        skip_button = True
         new_state = UpdateUserStates.wait_category
+
+    kb = keyboard_generator.get_category_list_keyboard(
+        categories=current_categories,
+        callback_data=callback_data,
+        back_callback_str=back_callback_str,
+        skip_button=skip_button,
+    )
 
     await state.update_data(user_data=user_data)
     await state.set_state(new_state)
@@ -216,9 +208,12 @@ async def create_update_user_category_handler(
     keyboard_generator: KeyboardGenerator,
     state: FSMContext,
     message_service: MessageService,
+    state_service: StateService,
     _: Locale,
 ) -> None:
     await callback.answer()
+
+    back_callback_str = await state_service.pull_previous_callback(state=state)
 
     fsm_data = await state.get_data()
     user_data = fsm_data["user_data"]
@@ -228,16 +223,16 @@ async def create_update_user_category_handler(
 
     if await state.get_state() == CreateUserStates.wait_category:
         text = _("admin_user_create_chat_ids")
-        kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=AdminMenuCallbackFactory().pack())
+        skip_button = False
         new_state = CreateUserStates.wait_chat_ids
 
     else:
         user = UserSchema(**fsm_data["user"])
         text = _("admin_user_update_chat_ids", chat_ids="\n".join(user.chat_ids))
-        kb = keyboard_generator.get_add_edit_keyboard(
-            back_callback_str=AdminMenuCallbackFactory().pack(), skip_button=True
-        )
+        skip_button = True
         new_state = UpdateUserStates.wait_chat_ids
+
+    kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=skip_button)
 
     await state.update_data(user_data=user_data)
     await state.set_state(new_state)
@@ -253,26 +248,29 @@ async def create_update_user_chat_ids_handler(
     state: FSMContext,
     user_validator: UserValidator,
     message_service: MessageService,
+    state_service: StateService,
     _: Locale,
 ) -> None:
     if isinstance(event, CallbackQuery):
         await event.answer()
+
+    back_callback_str = await state_service.pull_previous_callback(state=state)
 
     fsm_data = await state.get_data()
     user_data = fsm_data["user_data"]
 
     if await state.get_state() == CreateUserStates.wait_chat_ids:
         text = _("admin_user_create_inactivity_alert_delay")
-        kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=AdminMenuCallbackFactory().pack())
+        skip_button = False
         new_state = CreateUserStates.wait_inactivity_alert_delay
 
     else:
         user = UserSchema(**fsm_data["user"])
         text = _("admin_user_update_inactivity_alert_delay", alert_delay=user.inactivity_alert_delay)
-        kb = keyboard_generator.get_add_edit_keyboard(
-            back_callback_str=AdminMenuCallbackFactory().pack(), skip_button=True
-        )
+        skip_button = True
         new_state = UpdateUserStates.wait_inactivity_alert_delay
+
+    kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=skip_button)
 
     if isinstance(event, Message):
         chat_ids, validate_error_text = await user_validator.validate_chat_ids(value=event.text)
@@ -299,26 +297,29 @@ async def create_update_user_inactivity_alert_delay_handler(
     state: FSMContext,
     user_validator: UserValidator,
     message_service: MessageService,
+    state_service: StateService,
     _: Locale,
 ) -> None:
     if isinstance(event, CallbackQuery):
         await event.answer()
+
+    back_callback_str = await state_service.pull_previous_callback(state=state)
 
     fsm_data = await state.get_data()
     user_data = fsm_data["user_data"]
 
     if await state.get_state() == CreateUserStates.wait_inactivity_alert_delay:
         text = _("admin_user_create_stand_down_delay")
-        kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=AdminMenuCallbackFactory().pack())
+        skip_button = False
         new_state = CreateUserStates.wait_stand_down_delay
 
     else:
         user = UserSchema(**fsm_data["user"])
         text = _("admin_user_update_stand_down_delay", stand_down_delay=user.stand_down_delay)
-        kb = keyboard_generator.get_add_edit_keyboard(
-            back_callback_str=AdminMenuCallbackFactory().pack(), skip_button=True
-        )
+        skip_button = True
         new_state = UpdateUserStates.wait_stand_down_delay
+
+    kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=skip_button)
 
     if isinstance(event, Message):
         inactivity_alert_delay, validate_error_text = await user_validator.validate_inactivity_alert_delay(
@@ -343,10 +344,13 @@ async def create_update_user_stand_down_delay_handler(
     state: FSMContext,
     user_validator: UserValidator,
     message_service: MessageService,
+    state_service: StateService,
     _: Locale,
 ) -> None:
     if isinstance(event, CallbackQuery):
         await event.answer()
+
+    back_callback_str = await state_service.pull_previous_callback(state=state)
 
     fsm_data = await state.get_data()
     user_data = fsm_data["user_data"]
@@ -354,7 +358,9 @@ async def create_update_user_stand_down_delay_handler(
     if await state.get_state() == CreateUserStates.wait_stand_down_delay:
         text = _("admin_user_create_unique_command_reactions")
         skip_button = False
-        kb = keyboard_generator.get_user_unique_reactions_keyboard(back_callback_str=AdminMenuCallbackFactory().pack())
+        kb = keyboard_generator.get_user_unique_reactions_keyboard(
+            back_callback_str=back_callback_str, skip_button=skip_button
+        )
         new_state = CreateUserStates.wait_unique_command_reactions
 
     else:
@@ -362,7 +368,7 @@ async def create_update_user_stand_down_delay_handler(
         text = _("admin_user_update_unique_command_reactions", unique_command_reactions=user.unique_command_reactions)
         skip_button = True
         kb = keyboard_generator.get_user_unique_reactions_keyboard(
-            back_callback_str=AdminMenuCallbackFactory().pack(),
+            back_callback_str=back_callback_str,
             on_button=not user.unique_command_reactions,
             off_button=user.unique_command_reactions,
             skip_button=skip_button,
@@ -377,7 +383,7 @@ async def create_update_user_stand_down_delay_handler(
                 state=state,
                 text=validate_error_text,
                 reply_markup=keyboard_generator.get_add_edit_keyboard(
-                    back_callback_str=AdminMenuCallbackFactory().pack(), skip_button=skip_button
+                    back_callback_str=back_callback_str, skip_button=skip_button
                 ),
             )
             return
@@ -431,20 +437,27 @@ async def create_update_user_unique_command_reactions_handler(
 
 @admin_user_router.callback_query(UserCallbackFactory.filter(F.action == MenuActionEnum.REMOVE))
 async def remove_user_request_handler(
-    callback: CallbackQuery, state: FSMContext, keyboard_generator: KeyboardGenerator, _: Locale
+    callback: CallbackQuery,
+    state: FSMContext,
+    keyboard_generator: KeyboardGenerator,
+    message_service: MessageService,
+    state_service: StateService,
+    _: Locale,
 ) -> None:
     await callback.answer()
 
+    back_callback_str = await state_service.pull_previous_callback(state=state)
+
     fsm_data = await state.get_data()
     user = UserSchema(**fsm_data["user"])
-    back_callback_str = UserCallbackFactory(action=MenuActionEnum.RETRIEVE, uid=user.user_id).pack()
 
     text = _("admin_user_remove_request", user_id=user.user_id)
 
     kb = keyboard_generator.get_confirmation_keyboard(back_callback_str=back_callback_str)
 
     await state.set_state(RemoveUserStates.wait_confirmation)
-    await callback.message.answer(text=text, reply_markup=kb)
+
+    await message_service.send_message(event=callback, state=state, text=text, reply_markup=kb)
 
 
 @admin_user_router.callback_query(ConfirmMenuCallbackFactory.filter(), StateFilter(RemoveUserStates.wait_confirmation))
@@ -453,6 +466,7 @@ async def remove_category_handler(
     state: FSMContext,
     user_service: UserService,
     keyboard_generator: KeyboardGenerator,
+    message_service: MessageService,
     _: Locale,
 ) -> None:
     await callback.answer()
@@ -462,7 +476,9 @@ async def remove_category_handler(
 
     user_service.remove_user(user_id=user.user_id)
 
-    await callback.message.answer(
+    await message_service.send_message(
+        event=callback,
+        state=state,
         text=_("admin_user_successfully_removed", user_id=user.user_id),
         reply_markup=keyboard_generator.get_complete_action_keyboard(),
     )

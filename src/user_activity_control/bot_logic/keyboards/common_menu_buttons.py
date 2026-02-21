@@ -31,6 +31,8 @@ class CommonMenuButtons:
         if callback_data.total <= cls.page_limit:
             return builder
 
+        callback_data.by_paginate_button = True
+
         if callback_data.page == 0:
             prev_button = InlineKeyboardButton(text=" ", callback_data=NoopCallbackFactory().pack())
         else:

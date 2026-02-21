@@ -69,5 +69,4 @@ class StateService(Singleton):
         callback_stack = fsm_data.get(StateKeysEnum.CALLBACK_STACK, [])
         back_callback_str = callback_stack[-1] if len(callback_stack) > 0 else NoopCallbackFactory().pack()
 
-        self.logger.debug(f"stack_after {str(callback_stack)}")
         return back_callback_str

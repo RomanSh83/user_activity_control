@@ -9,7 +9,6 @@ from dynaconf import Dynaconf
 
 from user_activity_control.bot_logic.callback_classes.category_callbacks import CategoryCallbackFactory
 from user_activity_control.bot_logic.callback_classes.common_menu_callbacks import (
-    AdminMenuCallbackFactory,
     ConfirmMenuCallbackFactory,
     SkipMenuCallbackFactory,
 )
@@ -56,18 +55,24 @@ async def list_categories_handler(
     keyboard_generator: KeyboardGenerator,
     category_service: CategoryService,
     message_service: MessageService,
+    state_service: StateService,
     _: Locale,
 ) -> None:
     await callback.answer()
+
+    back_callback_str = (
+        await state_service.push_current_callback(state=state, callback_data=callback_data)
+        if callback_data.action == MenuActionEnum.LIST
+        else await state_service.pull_previous_callback(state=state)
+    )
 
     limit = settings.PAGINATION_LIMIT
 
     page = callback_data.page if callback_data.page else 0
     categories_total = callback_data.total if callback_data.total else len(categories.root)
 
-    callback_data = CategoryCallbackFactory(action=callback_data.action, page=page, total=categories_total)
+    paginated_callback_data = CategoryCallbackFactory(action=callback_data.action, page=page, total=categories_total)
     current_categories = category_service.get_categories(offset=callback_data.page * limit, limit=limit)
-    back_callback_str = AdminMenuCallbackFactory().pack()
     text = _("admin_category_list") if categories_total != 0 else _("admin_category_list_empty")
 
     await message_service.send_message(
@@ -75,7 +80,7 @@ async def list_categories_handler(
         state=state,
         text=text,
         reply_markup=keyboard_generator.get_category_list_keyboard(
-            categories=current_categories, callback_data=callback_data, back_callback_str=back_callback_str
+            categories=current_categories, callback_data=paginated_callback_data, back_callback_str=back_callback_str
         ),
     )
 
@@ -88,18 +93,19 @@ async def retrieve_category_handler(
     category_service: CategoryService,
     state: FSMContext,
     message_service: MessageService,
+    state_service: StateService,
     _: Locale,
 ) -> None:
     await callback.answer()
 
-    if callback_data.category_id is None:
+    if callback_data.category_id is None:  # заглушка mypy
         return
+
+    back_callback_str = await state_service.push_current_callback(state=state, callback_data=callback_data)
 
     category = category_service.get_category(category_id=callback_data.category_id)
 
     await state.update_data(category=category.model_dump())
-
-    back_callback_str = CategoryCallbackFactory(action=MenuActionEnum.LIST).pack()
 
     await message_service.send_message(
         event=callback,
@@ -121,26 +127,25 @@ async def create_update_category_handler(
     state: FSMContext,
     settings: Dynaconf,
     message_service: MessageService,
+    state_service: StateService,
     _: Locale,
 ) -> None:
     await callback.answer()
 
+    back_callback_str = await state_service.pull_previous_callback(state=state)
+
     if callback_data.action == MenuActionEnum.CREATE:
         text = _("admin_category_create_name", max_length=settings.MAX_CATEGORY_NAME_LENGTH)
-        kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=AdminMenuCallbackFactory().pack())
+        skip_button = False
         new_state = CreateCategoryStates.wait_name
     else:
         fsm_data = await state.get_data()
         category = CategorySchema(**fsm_data["category"])
         text = _("admin_category_update_name", name=category.name, max_length=settings.MAX_CATEGORY_NAME_LENGTH)
-        kb = keyboard_generator.get_add_edit_keyboard(
-            back_callback_str=CategoryCallbackFactory(
-                action=MenuActionEnum.RETRIEVE, category_id=callback_data.category_id
-            ).pack(),
-            skip_button=True,
-        )
+        skip_button = True
         new_state = UpdateCategoryStates.wait_name
 
+    kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=skip_button)
     await state.set_state(new_state)
     await message_service.send_message(event=callback, state=state, text=text, reply_markup=kb)
 
@@ -153,12 +158,14 @@ async def create_update_category_name_handler(
     category_validator: CategoryValidator,
     keyboard_generator: KeyboardGenerator,
     message_service: MessageService,
+    state_service: StateService,
     base_dir: Path,
     _: Locale,
-    callback: CallbackQuery | None = None,
 ) -> None:
-    if callback:
-        await callback.answer()
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+
+    back_callback_str = await state_service.pull_previous_callback(state=state)
 
     category_data = {}
     document = FSInputFile(
@@ -166,17 +173,13 @@ async def create_update_category_name_handler(
     )
 
     if await state.get_state() == CreateCategoryStates.wait_name:
-        back_callback_str = AdminMenuCallbackFactory().pack()
         text = _("admin_category_create_template_file")
-        kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str)
+        skip_button = False
         new_state = CreateCategoryStates.wait_template_file
 
     else:
         fsm_data = await state.get_data()
         current_category = CategorySchema(**fsm_data["category"])
-        back_callback_str = CategoryCallbackFactory(
-            action=MenuActionEnum.RETRIEVE, category_id=current_category.category_id
-        ).pack()
         file_path = (
             base_dir
             / ProjectFoldersEnum.APP_DATA
@@ -187,12 +190,14 @@ async def create_update_category_name_handler(
         if Path.exists(file_path):
             document = FSInputFile(file_path)
             text = _("admin_category_update_template_file_exists")
-            kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
+            skip_button = True
             new_state = UpdateCategoryStates.wait_optional_template_file
         else:
             text = _("admin_category_update_template_file_not_exists")
-            kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str)
+            skip_button = False
             new_state = UpdateCategoryStates.wait_required_template_file
+
+    kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=skip_button)
 
     if isinstance(event, Message):
         name, validate_error_text = await category_validator.validate_name(value=event.text)
@@ -228,12 +233,14 @@ async def create_update_category_templates_file_handler(
     category_validator: CategoryValidator,
     keyboard_generator: KeyboardGenerator,
     message_service: MessageService,
+    state_service: StateService,
     base_dir: Path,
     _: Locale,
-    callback: CallbackQuery | None = None,
 ) -> None:
-    if callback:
-        await callback.answer()
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+
+    back_callback_str = await state_service.pull_previous_callback(state=state)
 
     fsm_data = await state.get_data()
     strings_data = {}
@@ -242,16 +249,11 @@ async def create_update_category_templates_file_handler(
     )
 
     if await state.get_state() == CreateCategoryStates.wait_template_file:
-        back_callback_str = AdminMenuCallbackFactory().pack()
         text = _("admin_category_create_alarm_file")
-        kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
         new_state = CreateCategoryStates.wait_alarm_file
 
     else:
         current_category = CategorySchema(**fsm_data["category"])
-        back_callback_str = CategoryCallbackFactory(
-            action=MenuActionEnum.RETRIEVE, category_id=current_category.category_id
-        ).pack()
         file_path = (
             base_dir
             / ProjectFoldersEnum.APP_DATA
@@ -264,8 +266,9 @@ async def create_update_category_templates_file_handler(
             text = _("admin_category_update_alarm_file_exists")
         else:
             text = _("admin_category_update_alarm_file_not_exists")
-        kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
         new_state = UpdateCategoryStates.wait_alarm_file
+
+    kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
 
     if isinstance(event, Message):
         templates, validate_error_text = await category_validator.validate_templates_file(message=event)
@@ -292,12 +295,14 @@ async def create_update_category_alarm_file_handler(
     category_validator: CategoryValidator,
     keyboard_generator: KeyboardGenerator,
     message_service: MessageService,
+    state_service: StateService,
     base_dir: Path,
     _: Locale,
-    callback: CallbackQuery | None = None,
 ) -> None:
-    if callback:
-        await callback.answer()
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+
+    back_callback_str = await state_service.pull_previous_callback(state=state)
 
     fsm_data = await state.get_data()
     strings_data = fsm_data.get("strings_data")
@@ -306,16 +311,11 @@ async def create_update_category_alarm_file_handler(
     )
 
     if await state.get_state() == CreateCategoryStates.wait_alarm_file:
-        back_callback_str = AdminMenuCallbackFactory().pack()
         text = _("admin_category_create_stand_down_file")
-        kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
         new_state = CreateCategoryStates.wait_stand_down_file
 
     else:
         current_category = CategorySchema(**fsm_data["category"])
-        back_callback_str = CategoryCallbackFactory(
-            action=MenuActionEnum.RETRIEVE, category_id=current_category.category_id
-        ).pack()
         file_path = (
             base_dir
             / ProjectFoldersEnum.APP_DATA
@@ -328,8 +328,9 @@ async def create_update_category_alarm_file_handler(
             text = _("admin_category_update_stand_down_file_exists")
         else:
             text = _("admin_category_update_stand_down_file_not_exists")
-        kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
         new_state = UpdateCategoryStates.wait_stand_down_file
+
+    kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
 
     if isinstance(event, Message):
         alarm, validate_error_text = await category_validator.validate_strings_file(message=event)
@@ -356,12 +357,15 @@ async def create_update_category_stand_down_file_handler(
     category_validator: CategoryValidator,
     keyboard_generator: KeyboardGenerator,
     message_service: MessageService,
+    state_service: StateService,
     base_dir: Path,
     _: Locale,
-    callback: CallbackQuery | None = None,
 ) -> None:
-    if callback:
-        await callback.answer()
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+
+    back_callback_str = await state_service.pull_previous_callback(state=state)
+
     fsm_data = await state.get_data()
     strings_data = fsm_data.get("strings_data")
     document = FSInputFile(
@@ -369,16 +373,11 @@ async def create_update_category_stand_down_file_handler(
     )
 
     if await state.get_state() == CreateCategoryStates.wait_stand_down_file:
-        back_callback_str = AdminMenuCallbackFactory().pack()
         text = _("admin_category_create_command_file")
-        kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
         new_state = CreateCategoryStates.wait_command_file
 
     else:
         current_category = CategorySchema(**fsm_data["category"])
-        back_callback_str = CategoryCallbackFactory(
-            action=MenuActionEnum.RETRIEVE, category_id=current_category.category_id
-        ).pack()
         file_path = (
             base_dir
             / ProjectFoldersEnum.APP_DATA
@@ -391,8 +390,9 @@ async def create_update_category_stand_down_file_handler(
             text = _("admin_category_update_command_file_exists")
         else:
             text = _("admin_category_update_command_file_not_exists")
-        kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
         new_state = UpdateCategoryStates.wait_command_file
+
+    kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
 
     if isinstance(event, Message):
         stand_down, validate_error_text = await category_validator.validate_strings_file(message=event)
@@ -423,23 +423,24 @@ async def create_update_category_command_file_handler(
     state_service: StateService,
     _: Locale,
 ) -> None:
+    if isinstance(event, CallbackQuery):
+        await event.answer()
+
+    back_callback_str = await state_service.pull_previous_callback(state=state)
+
     fsm_data = await state.get_data()
     category_data = fsm_data["category_data"]
     strings_data = fsm_data["strings_data"]
 
     if await state.get_state() == CreateCategoryStates.wait_command_file:
         category_id = str(uuid.uuid4())
-        back_callback_str = AdminMenuCallbackFactory().pack()
         text = _("admin_category_created_successfully", name=category_data[CategoryEnum.NAME])
-        kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
     else:
         current_category = CategorySchema(**fsm_data["category"])
         category_id = current_category.category_id
-        back_callback_str = CategoryCallbackFactory(
-            action=MenuActionEnum.RETRIEVE, category_id=current_category.category_id
-        ).pack()
         text = _("admin_category_updated_successfully", name=current_category.name)
-        kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
+
+    kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=True)
 
     if isinstance(event, Message):
         command, validate_error_text = await category_validator.validate_strings_file(message=event)
@@ -468,20 +469,26 @@ async def create_update_category_command_file_handler(
 
 @admin_category_router.callback_query(CategoryCallbackFactory.filter(F.action == MenuActionEnum.REMOVE))
 async def remove_category_request_handler(
-    callback: CallbackQuery, state: FSMContext, keyboard_generator: KeyboardGenerator, _: Locale
+    callback: CallbackQuery,
+    state: FSMContext,
+    keyboard_generator: KeyboardGenerator,
+    message_service: MessageService,
+    state_service: StateService,
+    _: Locale,
 ) -> None:
     await callback.answer()
 
+    back_callback_str = await state_service.pull_previous_callback(state=state)
+
     fsm_data = await state.get_data()
     category = CategorySchema(**fsm_data["category"])
-    back_callback_str = CategoryCallbackFactory(action=MenuActionEnum.RETRIEVE, category_id=category.category_id).pack()
 
     text = _("admin_category_remove_request", name=category.name)
-
     kb = keyboard_generator.get_confirmation_keyboard(back_callback_str=back_callback_str)
 
     await state.set_state(RemoveCategoryStates.wait_confirmation)
-    await callback.message.answer(text=text, reply_markup=kb)
+
+    await message_service.send_message(event=callback, state=state, text=text, reply_markup=kb)
 
 
 @admin_category_router.callback_query(
@@ -494,6 +501,7 @@ async def remove_category_handler(
     category_service: CategoryService,
     users: UsersSchema,
     user_service: UserService,
+    message_service: MessageService,
     keyboard_generator: KeyboardGenerator,
     _: Locale,
 ) -> None:
@@ -508,7 +516,9 @@ async def remove_category_handler(
 
     category_service.remove_category(category_id=category.category_id)
 
-    await callback.message.answer(
+    await message_service.send_message(
+        event=callback,
+        state=state,
         text=_("admin_category_successfully_removed", name=category.name),
         reply_markup=keyboard_generator.get_complete_action_keyboard(),
     )

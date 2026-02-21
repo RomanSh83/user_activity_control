@@ -8,6 +8,8 @@ class UserCallbackFactory(CallbackData, prefix="user"):  # type: ignore
     uid: str | None = None
     page: int = 0
     total: int | None = None
+    by_previous_button: bool = False
+    by_paginate_button: bool = False
 
 
 class UserUniqueReactions(CallbackData, prefix="user_unique_reactions"):  # type: ignore

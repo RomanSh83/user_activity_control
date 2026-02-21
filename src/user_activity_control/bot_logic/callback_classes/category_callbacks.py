@@ -8,3 +8,5 @@ class CategoryCallbackFactory(CallbackData, prefix="category"):  # type: ignore
     category_id: str | None = None
     page: int = 0
     total: int | None = None
+    by_previous_button: bool = False
+    by_paginate_button: bool = False

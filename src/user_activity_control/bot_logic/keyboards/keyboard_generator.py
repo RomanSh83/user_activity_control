@@ -85,9 +85,7 @@ class KeyboardGenerator(Singleton):
         builder.row(
             InlineKeyboardButton(
                 text=self._("keyboard_list_category_users_button"),
-                callback_data=UserCallbackFactory(
-                    action=MenuActionEnum.RELATED_LIST, category_id=category.category_id
-                ).pack(),
+                callback_data=UserCallbackFactory(action=MenuActionEnum.RELATED_LIST).pack(),
             )
         )
         builder.row(

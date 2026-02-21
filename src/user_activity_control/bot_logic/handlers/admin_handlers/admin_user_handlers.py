@@ -32,9 +32,7 @@ admin_user_router.callback_query.filter(AdminFilter())
 logger = get_logger(__name__)
 
 
-@admin_user_router.callback_query(
-    UserCallbackFactory.filter(F.action.in_((MenuActionEnum.LIST, MenuActionEnum.RELATED_LIST)))
-)
+@admin_user_router.callback_query(UserCallbackFactory.filter(F.action == MenuActionEnum.LIST))
 async def list_users_handler(
     callback: CallbackQuery,
     callback_data: UserCallbackFactory,
@@ -53,6 +51,7 @@ async def list_users_handler(
 
     limit = settings.PAGINATION_LIMIT
     page = callback_data.page if callback_data.page else 0
+    users_total = callback_data.total if callback_data.total else len(users.root)
 
     callback_data = UserCallbackFactory(action=MenuActionEnum.LIST, page=page, total=users_total)
     current_users = user_service.get_users(offset=callback_data.page * limit, limit=limit)

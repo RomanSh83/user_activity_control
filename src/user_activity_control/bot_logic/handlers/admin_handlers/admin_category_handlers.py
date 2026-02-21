@@ -510,7 +510,7 @@ async def remove_category_handler(
     fsm_data = await state.get_data()
     category = CategorySchema(**fsm_data["category"])
 
-    related_users = [user_id for user_id in users.root if users.root[user_id].category == category.category_id]
+    related_users = user_service.get_category_user_ids(category_id=category.category_id)
     if len(related_users):
         user_service.remove_users(user_ids=related_users)
 

@@ -164,6 +164,9 @@ admin_users_list_empty: |
 
   Cоздайте нового пользователя, нажав "Создать пользователя".
 
+admin_category_users_list_empty: |
+  Отслеживаемые пользователи в данной категории не найдены.
+
 admin_user_retrieve: |
   <b>Пользователь ID: "{user_id}"</b>
 
@@ -395,6 +398,9 @@ keyboard_example_files_menu_button: |
 
 keyboard_list_categories_button: |
   Список категорий
+
+keyboard_list_category_users_button: |
+  Список связанных пользователей
 
 keyboard_create_category_button: |
   Создать новую категорию

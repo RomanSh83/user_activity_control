@@ -10,9 +10,13 @@ class UserService(Singleton):
         self.app_data = get_app_data()
         self.users = get_users()
 
-    def get_users(self, offset: int, limit: int) -> list[UserSchema]:
-        users_keys = list(self.users.root.keys())
-        return [self.get_user(user_id=key) for key in users_keys[offset : offset + limit]]
+    def get_users(self, offset: int, limit: int, user_ids: list[str] | None = None) -> list[UserSchema]:
+        if user_ids is None:
+            user_ids = list(self.users.root.keys())
+        return [self.get_user(user_id=key) for key in user_ids[offset : offset + limit]]
+
+    def get_category_user_ids(self, category_id: str | None) -> list[str]:
+        return [user_id for user_id in self.users.root if self.users.root[user_id].category == category_id]
 
     def get_user(self, user_id: str) -> UserSchema:
         return UserSchema(user_id=user_id, **self.users.root[user_id].model_dump())

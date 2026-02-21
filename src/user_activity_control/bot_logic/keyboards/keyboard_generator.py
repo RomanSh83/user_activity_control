@@ -84,6 +84,14 @@ class KeyboardGenerator(Singleton):
 
         builder.row(
             InlineKeyboardButton(
+                text=self._("keyboard_list_category_users_button"),
+                callback_data=UserCallbackFactory(
+                    action=MenuActionEnum.RELATED_LIST, category_id=category.category_id
+                ).pack(),
+            )
+        )
+        builder.row(
+            InlineKeyboardButton(
                 text=self._("keyboard_update_category_button"),
                 callback_data=CategoryCallbackFactory(
                     action=MenuActionEnum.UPDATE, category_id=category.category_id
@@ -160,12 +168,13 @@ class KeyboardGenerator(Singleton):
 
         self.common_buttons.get_pagination_buttons(builder=builder, callback_data=callback_data)
 
-        builder.row(
-            InlineKeyboardButton(
-                text=self._("keyboard_create_user_button"),
-                callback_data=UserCallbackFactory(action=MenuActionEnum.CREATE).pack(),
+        if callback_data.action == MenuActionEnum.LIST:
+            builder.row(
+                InlineKeyboardButton(
+                    text=self._("keyboard_create_user_button"),
+                    callback_data=UserCallbackFactory(action=MenuActionEnum.CREATE).pack(),
+                )
             )
-        )
 
         if back_callback_str:
             self.common_buttons.get_previous_button(builder=builder, callback_str=back_callback_str)

@@ -14,7 +14,7 @@ from user_activity_control.bot_logic.enums.entity_enums import UsersEnum
 from user_activity_control.bot_logic.enums.menu_enums import MenuActionEnum
 from user_activity_control.bot_logic.filters.permission_filters import AdminFilter
 from user_activity_control.bot_logic.keyboards.keyboard_generator import KeyboardGenerator
-from user_activity_control.bot_logic.schemas.category_schemas import CategoriesSchema
+from user_activity_control.bot_logic.schemas.category_schemas import CategoriesSchema, CategorySchema
 from user_activity_control.bot_logic.schemas.user_schemas import UserParamsUpdateSchema, UserSchema, UsersSchema
 from user_activity_control.bot_logic.services.admin_services.categories_services import CategoryService
 from user_activity_control.bot_logic.services.admin_services.users_services import UserService
@@ -32,7 +32,9 @@ admin_user_router.callback_query.filter(AdminFilter())
 logger = get_logger(__name__)
 
 
-@admin_user_router.callback_query(UserCallbackFactory.filter(F.action == MenuActionEnum.LIST))
+@admin_user_router.callback_query(
+    UserCallbackFactory.filter(F.action.in_((MenuActionEnum.LIST, MenuActionEnum.RELATED_LIST)))
+)
 async def list_users_handler(
     callback: CallbackQuery,
     callback_data: UserCallbackFactory,
@@ -51,11 +53,24 @@ async def list_users_handler(
 
     limit = settings.PAGINATION_LIMIT
     page = callback_data.page if callback_data.page else 0
-    users_total = callback_data.total if callback_data.total else len(users.root)
 
-    callback_data = UserCallbackFactory(action=MenuActionEnum.LIST, page=page, total=users_total)
-    current_users = user_service.get_users(offset=callback_data.page * limit, limit=limit)
-    text = _("admin_users_list") if users_total != 0 else _("admin_users_list_empty")
+    if callback_data.action == MenuActionEnum.RELATED_LIST:
+        fsm_data = await state.get_data()
+        category = CategorySchema(**fsm_data["category"])
+        user_ids = user_service.get_category_user_ids(category_id=category.category_id)
+        users_total = len(user_ids) if callback_data.total is None else callback_data.total
+        current_users = user_service.get_users(user_ids=user_ids, offset=callback_data.page * limit, limit=limit)
+        callback_data = UserCallbackFactory(action=MenuActionEnum.RELATED_LIST, page=page, total=users_total)
+        text = (
+            _("admin_category_users_list", category_name=category.name)
+            if users_total != 0
+            else _("admin_category_users_list_empty", category_name=category.name)
+        )
+    else:
+        users_total = callback_data.total if callback_data.total else len(users.root)
+        current_users = user_service.get_users(offset=callback_data.page * limit, limit=limit)
+        callback_data = UserCallbackFactory(action=MenuActionEnum.LIST, page=page, total=users_total)
+        text = _("admin_users_list") if users_total != 0 else _("admin_users_list_empty")
 
     await message_service.send_message(
         event=callback,

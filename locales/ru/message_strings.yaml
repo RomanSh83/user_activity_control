@@ -159,12 +159,19 @@ admin_category_successfully_removed: |
 admin_users_list: |
   Выберите один из существующих ID пользователей:
 
+admin_category_users_list: |
+  <b>Пользователи категории: "{category_name}"</b>
+
+  Выберите один из ID пользователей:
+
 admin_users_list_empty: |
   Отслеживаемые пользователи не найдены.
 
   Cоздайте нового пользователя, нажав "Создать пользователя".
 
 admin_category_users_list_empty: |
+  <b>Пользователи категории: "{category_name}"</b>
+
   Отслеживаемые пользователи в данной категории не найдены.
 
 admin_user_retrieve: |

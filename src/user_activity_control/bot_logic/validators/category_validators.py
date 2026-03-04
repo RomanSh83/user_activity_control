@@ -3,26 +3,28 @@ import re
 import yaml
 from aiogram.exceptions import DetailedAiogramError
 from aiogram.types import Message
+from dynaconf import Dynaconf
 
 from user_activity_control.bot_logic.enums.strings_type_enums import TemplatesEnum
-from user_activity_control.bot_logic.services.admin_services.categories_services import CategoryService
-from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.core.config import get_logger, get_settings
-from user_activity_control.infra.locale.locale_utils import get_translate_string
+from user_activity_control.bot_logic.services.category_services import CategoryService
+from user_activity_control.infra.locale.types import LocaleFactory
+from user_activity_control.infra.logger.types import LoggerFactory
 
 
-class CategoryValidator(Singleton):
-    def __init__(self):
-        self.logger = get_logger(__name__)
-        self.settings = get_settings()
-        self.category_service = CategoryService()
-        self._ = get_translate_string
+class CategoryValidator:
+    def __init__(
+        self, logger_factory: LoggerFactory, settings: Dynaconf, category_service: CategoryService, _: LocaleFactory
+    ) -> None:
+        self.logger = logger_factory(__name__)
+        self.settings = settings
+        self.category_service = category_service
+        self._ = _
 
     async def validate_name(self, value: str) -> tuple[None, str] | tuple[str, None]:
-        if len(value) > get_settings().MAX_CATEGORY_NAME_LENGTH:
+        if len(value) > self.settings.MAX_CATEGORY_NAME_LENGTH:
             return (
                 None,
-                self._("validator_category_name_length", max_length=get_settings().MAX_CATEGORY_NAME_LENGTH),
+                self._("validator_category_name_length", max_length=self.settings.MAX_CATEGORY_NAME_LENGTH),
             )
         if not re.fullmatch(pattern="^[a-zA-Zа-яА-ЯёЁ0-9 ]+$", string=value):
             return None, self._("validator_category_name_regex")

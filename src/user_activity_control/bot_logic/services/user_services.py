@@ -1,14 +1,13 @@
-from user_activity_control.bot_logic.schemas.user_schemas import UserParamsUpdateSchema, UserSchema
-from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.core.config import get_logger
-from user_activity_control.infra.app_data.app_data import get_app_data, get_users
+from user_activity_control.bot_logic.schemas.user_schemas import UserParamsUpdateSchema, UserSchema, UsersSchema
+from user_activity_control.infra.app_data.app_data import AppData
+from user_activity_control.infra.logger.types import LoggerFactory
 
 
-class UserService(Singleton):
-    def __init__(self):
-        self.logger = get_logger(__name__)
-        self.app_data = get_app_data()
-        self.users = get_users()
+class UserService:
+    def __init__(self, app_data: AppData, users: UsersSchema, logger_factory: LoggerFactory):
+        self.logger = logger_factory(__name__)
+        self.app_data = app_data
+        self.users = users
 
     def get_users(self, offset: int, limit: int, user_ids: list[str] | None = None) -> list[UserSchema]:
         if user_ids is None:

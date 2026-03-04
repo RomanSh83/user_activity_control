@@ -7,16 +7,15 @@ from user_activity_control.bot_logic.enums.activity_enums import ActivityKeysEnu
 from user_activity_control.bot_logic.enums.strings_type_enums import StringsTypesEnum
 from user_activity_control.bot_logic.schemas.control_user_schemas import ControlUserSchema
 from user_activity_control.bot_logic.services.text_composer_service import TextComposerService
-from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.core.config import get_logger
-from user_activity_control.infra.bot_storage.in_memory_storage import ActivityStorage
+from user_activity_control.infra.logger.types import LoggerFactory
+from user_activity_control.infra.storage.in_memory_storage import ActivityStorage
 
 
-class UserActivityService(Singleton):
-    def __init__(self, storage: ActivityStorage, text_composer: TextComposerService):
+class UserActivityService:
+    def __init__(self, storage: ActivityStorage, text_composer: TextComposerService, logger_factory: LoggerFactory):
         self.storage = storage
         self.text_composer = text_composer
-        self.logger = get_logger(__name__)
+        self.logger = logger_factory(__name__)
 
     async def _send_delayed_message(self, message: Message, control_user: ControlUserSchema, string_type: str) -> None:
         await asyncio.sleep(control_user.stand_down_delay * 60)

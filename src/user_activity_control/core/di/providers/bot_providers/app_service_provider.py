@@ -1,0 +1,26 @@
+from pathlib import Path
+from typing import Any
+
+from dishka import Provider, Scope, provide
+
+from user_activity_control.bot_logic.schemas.category_schemas import CategoriesSchema
+from user_activity_control.bot_logic.services.text_composer_service import TextComposerService
+from user_activity_control.bot_logic.services.user_activity_service import UserActivityService
+from user_activity_control.infra.logger.types import LoggerFactory
+from user_activity_control.infra.storage.in_memory_storage import ActivityStorage
+
+
+class AppServiceProvider(Provider):
+    @provide(scope=Scope.APP)
+    def get_text_composer_service(
+        self, base_dir: Path, categories: CategoriesSchema, logger_factory: LoggerFactory, strings: dict[str, Any]
+    ) -> TextComposerService:
+        return TextComposerService(
+            base_dir=base_dir, categories=categories, strings=strings, logger_factory=logger_factory
+        )
+
+    @provide(scope=Scope.APP)
+    def get_user_activity_service(
+        self, storage: ActivityStorage, text_composer: TextComposerService, logger_factory: LoggerFactory
+    ) -> UserActivityService:
+        return UserActivityService(storage=storage, text_composer=text_composer, logger_factory=logger_factory)

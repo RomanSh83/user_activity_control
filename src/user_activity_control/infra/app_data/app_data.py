@@ -18,17 +18,14 @@ from user_activity_control.bot_logic.schemas.user_schemas import (
     UsersSchema,
 )
 from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.core.config import get_base_dir, get_logger
 from user_activity_control.core.enums.enums import ProjectFoldersEnum, UsersConfigFilesEnum
-
-logger = get_logger(__name__)
+from user_activity_control.infra.logger.types import LoggerFactory
 
 
 class AppData(Singleton):
-    def __init__(self):
-        if hasattr(self, "_initialized"):
-            return
-        self._base_dir = get_base_dir()
+    def __init__(self, base_dir: Path, logger_factory: LoggerFactory):
+        self._logger_factory = logger_factory
+        self._base_dir = base_dir
         self._strings_dir = self._get_strings_dir()
         self._users_file_path = self._get_users_file_path()
         self._categories_file_path = self._get_categories_file_path()
@@ -36,7 +33,6 @@ class AppData(Singleton):
         self.users = self._get_users()
         self.strings = self._get_strings()
         self._clear_app_data_strings()
-        self._initialized = True
 
     def _get_strings_dir(self) -> Path:
         return self._base_dir / ProjectFoldersEnum.APP_DATA / ProjectFoldersEnum.STRINGS
@@ -183,19 +179,3 @@ class AppData(Singleton):
         for user_id in user_ids:
             self.users.root.pop(user_id, None)
         self._save_users_to_yaml()
-
-
-def get_app_data() -> AppData:
-    return AppData()
-
-
-def get_users() -> UsersSchema:
-    return AppData().users
-
-
-def get_categories() -> CategoriesSchema:
-    return AppData().categories
-
-
-def get_strings() -> dict[str, Any]:
-    return AppData().strings

@@ -7,13 +7,12 @@ from user_activity_control.bot_logic.callback_classes.common_menu_callbacks impo
 )
 from user_activity_control.bot_logic.callback_classes.user_callbacks import UserCallbackFactory
 from user_activity_control.bot_logic.enums.state_enums import StateKeysEnum
-from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.core.config import get_logger
+from user_activity_control.infra.logger.types import LoggerFactory
 
 
-class StateService(Singleton):
-    def __init__(self):
-        self.logger = get_logger(__name__)
+class StateService:
+    def __init__(self, logger_factory: LoggerFactory):
+        self.logger = logger_factory(__name__)
 
     @staticmethod
     async def safe_clear(state: FSMContext):

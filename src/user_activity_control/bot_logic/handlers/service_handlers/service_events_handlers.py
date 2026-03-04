@@ -2,15 +2,15 @@ from aiogram import Bot, Router
 from aiogram.exceptions import TelegramForbiddenError
 
 from user_activity_control.bot_logic.commands.commands import set_commands
-from user_activity_control.core.config import get_logger
-from user_activity_control.infra.locale.types import Locale
+from user_activity_control.infra.locale.types import LocaleFactory
+from user_activity_control.infra.logger.types import LoggerFactory
 
 events_router = Router()
-logger = get_logger(__name__)
 
 
 @events_router.startup()
-async def start_bot(bot: Bot, _: Locale, admins: set[str]) -> None:
+async def start_bot(bot: Bot, _: LocaleFactory, admins: set[str], logger_factory: LoggerFactory) -> None:
+    logger = logger_factory(__name__)
     logger.info("Starting bot")
     await set_commands(bot=bot, _=_)
     for admin_id in admins:
@@ -23,7 +23,8 @@ async def start_bot(bot: Bot, _: Locale, admins: set[str]) -> None:
 
 
 @events_router.shutdown()
-async def stop_bot(bot: Bot, _: Locale, admins: set[str]):
+async def stop_bot(bot: Bot, _: LocaleFactory, admins: set[str], logger_factory: LoggerFactory) -> None:
+    logger = logger_factory(__name__)
     logger.info("Stopping bot")
     for admin_id in admins:
         try:

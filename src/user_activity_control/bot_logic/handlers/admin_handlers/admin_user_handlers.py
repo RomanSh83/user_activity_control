@@ -2,6 +2,7 @@ from aiogram import F, Router
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
+from dishka import FromDishka
 from dynaconf import Dynaconf
 
 from user_activity_control.bot_logic.callback_classes.category_callbacks import CategoryCallbackFactory
@@ -16,20 +17,16 @@ from user_activity_control.bot_logic.filters.permission_filters import AdminFilt
 from user_activity_control.bot_logic.keyboards.keyboard_generator import KeyboardGenerator
 from user_activity_control.bot_logic.schemas.category_schemas import CategoriesSchema, CategorySchema
 from user_activity_control.bot_logic.schemas.user_schemas import UserParamsUpdateSchema, UserSchema, UsersSchema
-from user_activity_control.bot_logic.services.admin_services.categories_services import CategoryService
-from user_activity_control.bot_logic.services.admin_services.users_services import UserService
-from user_activity_control.bot_logic.services.bot_services.send_message_service import MessageService
-from user_activity_control.bot_logic.services.bot_services.state_services import StateService
+from user_activity_control.bot_logic.services.category_services import CategoryService
+from user_activity_control.bot_logic.services.user_services import UserService
 from user_activity_control.bot_logic.states.user_states import CreateUserStates, RemoveUserStates, UpdateUserStates
 from user_activity_control.bot_logic.validators.user_validators import UserValidator
-from user_activity_control.core.config import get_logger
-from user_activity_control.infra.locale.types import Locale
+from user_activity_control.infra.locale.types import LocaleFactory
+from user_activity_control.infra.telegram.bot_services.message_service import MessageService
+from user_activity_control.infra.telegram.bot_services.state_services import StateService
 
 admin_user_router = Router()
 admin_user_router.callback_query.filter(AdminFilter())
-
-
-logger = get_logger(__name__)
 
 
 @admin_user_router.callback_query(
@@ -39,13 +36,13 @@ async def list_users_handler(
     callback: CallbackQuery,
     callback_data: UserCallbackFactory,
     state: FSMContext,
-    settings: Dynaconf,
-    users: UsersSchema,
-    keyboard_generator: KeyboardGenerator,
-    user_service: UserService,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    settings: FromDishka[Dynaconf],
+    users: FromDishka[UsersSchema],
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    user_service: FromDishka[UserService],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     await callback.answer()
 
@@ -86,13 +83,13 @@ async def list_users_handler(
 async def retrieve_user_handler(
     callback: CallbackQuery,
     callback_data: UserCallbackFactory,
-    keyboard_generator: KeyboardGenerator,
-    category_service: CategoryService,
-    user_service: UserService,
     state: FSMContext,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    category_service: FromDishka[CategoryService],
+    user_service: FromDishka[UserService],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     await callback.answer()
 
@@ -125,11 +122,11 @@ async def retrieve_user_handler(
 @admin_user_router.callback_query(UserCallbackFactory.filter(F.action == MenuActionEnum.CREATE))
 async def create_user_id_request_handler(
     callback: CallbackQuery,
-    keyboard_generator: KeyboardGenerator,
     state: FSMContext,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     await callback.answer()
 
@@ -148,15 +145,15 @@ async def create_user_id_request_handler(
 @admin_user_router.callback_query(UserCallbackFactory.filter(F.action == MenuActionEnum.UPDATE))
 async def create_update_user_category_request_handler(
     event: Message | CallbackQuery,
-    keyboard_generator: KeyboardGenerator,
     state: FSMContext,
-    settings: Dynaconf,
-    categories: CategoriesSchema,
-    category_service: CategoryService,
-    message_service: MessageService,
-    state_service: StateService,
-    user_validator: UserValidator,
-    _: Locale,
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    settings: FromDishka[Dynaconf],
+    categories: FromDishka[CategoriesSchema],
+    category_service: FromDishka[CategoryService],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    user_validator: FromDishka[UserValidator],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     if isinstance(event, CallbackQuery):
         await event.answer()
@@ -219,11 +216,11 @@ async def create_update_user_category_request_handler(
 async def create_update_user_category_handler(
     callback: CallbackQuery,
     callback_data: CategoryCallbackFactory | SkipMenuCallbackFactory,
-    keyboard_generator: KeyboardGenerator,
     state: FSMContext,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     await callback.answer()
 
@@ -258,12 +255,12 @@ async def create_update_user_category_handler(
 @admin_user_router.callback_query(SkipMenuCallbackFactory.filter(), StateFilter(UpdateUserStates.wait_chat_ids))
 async def create_update_user_chat_ids_handler(
     event: Message | CallbackQuery,
-    keyboard_generator: KeyboardGenerator,
     state: FSMContext,
-    user_validator: UserValidator,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    user_validator: FromDishka[UserValidator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     if isinstance(event, CallbackQuery):
         await event.answer()
@@ -307,12 +304,12 @@ async def create_update_user_chat_ids_handler(
 )
 async def create_update_user_inactivity_alert_delay_handler(
     event: Message | CallbackQuery,
-    keyboard_generator: KeyboardGenerator,
     state: FSMContext,
-    user_validator: UserValidator,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    user_validator: FromDishka[UserValidator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     if isinstance(event, CallbackQuery):
         await event.answer()
@@ -354,12 +351,12 @@ async def create_update_user_inactivity_alert_delay_handler(
 @admin_user_router.callback_query(SkipMenuCallbackFactory.filter(), StateFilter(UpdateUserStates.wait_stand_down_delay))
 async def create_update_user_stand_down_delay_handler(
     event: Message | CallbackQuery,
-    keyboard_generator: KeyboardGenerator,
     state: FSMContext,
-    user_validator: UserValidator,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    user_validator: FromDishka[UserValidator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     if isinstance(event, CallbackQuery):
         await event.answer()
@@ -419,12 +416,12 @@ async def create_update_user_stand_down_delay_handler(
 async def create_update_user_unique_command_reactions_handler(
     callback: CallbackQuery,
     callback_data: UserUniqueReactions,
-    keyboard_generator: KeyboardGenerator,
     state: FSMContext,
-    user_service: UserService,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    user_service: FromDishka[UserService],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     await callback.answer()
 
@@ -453,10 +450,10 @@ async def create_update_user_unique_command_reactions_handler(
 async def remove_user_request_handler(
     callback: CallbackQuery,
     state: FSMContext,
-    keyboard_generator: KeyboardGenerator,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     await callback.answer()
 
@@ -478,10 +475,10 @@ async def remove_user_request_handler(
 async def remove_category_handler(
     callback: CallbackQuery,
     state: FSMContext,
-    user_service: UserService,
-    keyboard_generator: KeyboardGenerator,
-    message_service: MessageService,
-    _: Locale,
+    user_service: FromDishka[UserService],
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    message_service: FromDishka[MessageService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     await callback.answer()
 

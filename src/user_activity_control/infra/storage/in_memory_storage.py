@@ -1,9 +1,7 @@
 from typing import Any
 
-from user_activity_control.core.base.singleton import Singleton
 
-
-class ActivityStorage(Singleton):
+class ActivityStorage:
     def __init__(self) -> None:
         self.storage: dict[Any, Any] = {}
 

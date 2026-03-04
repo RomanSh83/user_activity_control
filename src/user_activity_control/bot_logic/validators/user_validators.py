@@ -1,14 +1,13 @@
-from user_activity_control.bot_logic.services.admin_services.users_services import UserService
-from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.core.config import get_logger
-from user_activity_control.infra.locale.locale_utils import get_translate_string
+from user_activity_control.bot_logic.services.user_services import UserService
+from user_activity_control.infra.locale.types import LocaleFactory
+from user_activity_control.infra.logger.types import LoggerFactory
 
 
-class UserValidator(Singleton):
-    def __init__(self):
-        self.logger = get_logger(__name__)
-        self.user_service = UserService()
-        self._ = get_translate_string
+class UserValidator:
+    def __init__(self, logger_factory: LoggerFactory, user_service: UserService, _: LocaleFactory) -> None:
+        self.logger = logger_factory(__name__)
+        self.user_service = user_service
+        self._ = _
 
     async def validate_id(self, value: str) -> tuple[None, str] | tuple[str, None]:
         try:

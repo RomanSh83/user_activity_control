@@ -4,14 +4,14 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import ErrorEvent
 from aiogram.utils.formatting import Bold, Pre, Text
 
-from user_activity_control.core.config import get_logger
+from user_activity_control.infra.logger.types import LoggerFactory
 
 exceptions_router = Router()
-logger = get_logger(__name__)
 
 
 @exceptions_router.error()
-async def exceptions_handler(event: ErrorEvent, admins: set[int], state: FSMContext):
+async def exceptions_handler(event: ErrorEvent, state: FSMContext, admins: set[int], logger_factory: LoggerFactory):
+    logger = logger_factory(__name__)
     logger.error("Error: %s", event.exception, exc_info=True)
     await state.clear()
 

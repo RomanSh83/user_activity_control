@@ -7,21 +7,15 @@ from user_activity_control.bot_logic.enums.menu_enums import MenuActionEnum
 from user_activity_control.bot_logic.keyboards.common_menu_buttons import CommonMenuButtons
 from user_activity_control.bot_logic.schemas.category_schemas import CategorySchema
 from user_activity_control.bot_logic.schemas.user_schemas import UserSchema
-from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.core.config import get_logger
-from user_activity_control.infra.locale.locale_utils import get_translate_string
-
-logger = get_logger(__name__)
+from user_activity_control.infra.locale.types import LocaleFactory
+from user_activity_control.infra.logger.types import LoggerFactory
 
 
-class MenuButtons:
-    pass
-
-
-class KeyboardGenerator(Singleton):
-    def __init__(self):
-        self._ = get_translate_string
-        self.common_buttons = CommonMenuButtons
+class KeyboardGenerator:
+    def __init__(self, logger_factory: LoggerFactory, common_buttons: CommonMenuButtons, locale_factory: LocaleFactory):
+        self.logger = logger_factory(__name__)
+        self.common_buttons = common_buttons
+        self._ = locale_factory
 
     def get_admin_keyboard(self) -> InlineKeyboardMarkup:
         builder = InlineKeyboardBuilder()

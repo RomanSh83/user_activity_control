@@ -1,18 +1,22 @@
 import random
+from pathlib import Path
+from typing import Any
 
 from user_activity_control.bot_logic.enums.strings_type_enums import StringsTypesEnum
+from user_activity_control.bot_logic.schemas.category_schemas import CategoriesSchema
 from user_activity_control.bot_logic.schemas.control_user_schemas import ControlUserSchema
-from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.core.config import get_base_dir, get_logger
-from user_activity_control.infra.app_data.app_data import get_categories, get_strings
+from user_activity_control.core.enums.enums import ProjectFoldersEnum
+from user_activity_control.infra.logger.types import LoggerFactory
 
 
-class TextComposerService(Singleton):
-    def __init__(self):
-        self.logger = get_logger(__name__)
-        self.categories = get_categories()
-        self.strings_dir = get_base_dir() / "app_data" / "strings"
-        self.strings = get_strings()
+class TextComposerService:
+    def __init__(
+        self, categories: CategoriesSchema, base_dir: Path, logger_factory: LoggerFactory, strings: dict[str, Any]
+    ):
+        self.logger = logger_factory(__name__)
+        self.categories = categories
+        self.strings_dir = base_dir / ProjectFoldersEnum.APP_DATA / ProjectFoldersEnum.STRINGS
+        self.strings = strings
 
     def compose_text(self, control_user: ControlUserSchema, string_type: str) -> str | None:
         category = control_user.category

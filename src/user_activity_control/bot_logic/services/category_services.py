@@ -1,16 +1,19 @@
 from typing import Any
 
-from user_activity_control.bot_logic.schemas.category_schemas import CategoryParamsUpdateSchema, CategorySchema
-from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.core.config import get_logger
-from user_activity_control.infra.app_data.app_data import get_app_data, get_categories
+from user_activity_control.bot_logic.schemas.category_schemas import (
+    CategoriesSchema,
+    CategoryParamsUpdateSchema,
+    CategorySchema,
+)
+from user_activity_control.infra.app_data.app_data import AppData
+from user_activity_control.infra.logger.types import LoggerFactory
 
 
-class CategoryService(Singleton):
-    def __init__(self):
-        self.logger = get_logger(__name__)
-        self.app_data = get_app_data()
-        self.categories = get_categories()
+class CategoryService:
+    def __init__(self, app_data: AppData, categories: CategoriesSchema, logger_factory: LoggerFactory):
+        self.logger = logger_factory(__name__)
+        self.app_data = app_data
+        self.categories = categories
 
     def _save_strings(self, category_id: str, strings_data: dict[str, Any]) -> None:
         self.app_data.save_strings(category_id=category_id, strings_data=strings_data)

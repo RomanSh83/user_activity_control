@@ -1,11 +1,5 @@
 from aiogram.filters.callback_data import CallbackData
 
-# class NavigatorCallbackFactory(CallbackData, prefix="navigator"):  # type: ignore
-#     entity: str
-#     page: int
-#     total: int
-#     from_action: MenuActionEnum | None = None
-
 
 class AdminMenuCallbackFactory(CallbackData, prefix="admin_menu"):  # type: ignore
     pass

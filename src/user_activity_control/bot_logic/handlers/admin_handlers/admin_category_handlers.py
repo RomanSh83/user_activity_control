@@ -5,6 +5,7 @@ from aiogram import F, Router
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, FSInputFile, Message
+from dishka import FromDishka
 from dynaconf import Dynaconf
 
 from user_activity_control.bot_logic.callback_classes.category_callbacks import CategoryCallbackFactory
@@ -21,26 +22,21 @@ from user_activity_control.bot_logic.schemas.category_schemas import (
     CategoryParamsUpdateSchema,
     CategorySchema,
 )
-from user_activity_control.bot_logic.schemas.user_schemas import UsersSchema
-from user_activity_control.bot_logic.services.admin_services.categories_services import CategoryService
-from user_activity_control.bot_logic.services.admin_services.users_services import UserService
-from user_activity_control.bot_logic.services.bot_services.send_message_service import MessageService
-from user_activity_control.bot_logic.services.bot_services.state_services import StateService
+from user_activity_control.bot_logic.services.category_services import CategoryService
+from user_activity_control.bot_logic.services.user_services import UserService
 from user_activity_control.bot_logic.states.category_states import (
     CreateCategoryStates,
     RemoveCategoryStates,
     UpdateCategoryStates,
 )
 from user_activity_control.bot_logic.validators.category_validators import CategoryValidator
-from user_activity_control.core.config import get_logger
 from user_activity_control.core.enums.enums import ExamplesFilesEnum, ProjectFoldersEnum, StringsFilesEnum
-from user_activity_control.infra.locale.types import Locale
+from user_activity_control.infra.locale.types import LocaleFactory
+from user_activity_control.infra.telegram.bot_services.message_service import MessageService
+from user_activity_control.infra.telegram.bot_services.state_services import StateService
 
 admin_category_router = Router()
 admin_category_router.callback_query.filter(AdminFilter())
-
-
-logger = get_logger(__name__)
 
 
 @admin_category_router.callback_query(
@@ -50,13 +46,13 @@ async def list_categories_handler(
     callback: CallbackQuery,
     callback_data: CategoryCallbackFactory,
     state: FSMContext,
-    settings: Dynaconf,
-    categories: CategoriesSchema,
-    keyboard_generator: KeyboardGenerator,
-    category_service: CategoryService,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    settings: FromDishka[Dynaconf],
+    categories: FromDishka[CategoriesSchema],
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    category_service: FromDishka[CategoryService],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     await callback.answer()
 
@@ -89,12 +85,12 @@ async def list_categories_handler(
 async def retrieve_category_handler(
     callback: CallbackQuery,
     callback_data: CategoryCallbackFactory,
-    keyboard_generator: KeyboardGenerator,
-    category_service: CategoryService,
     state: FSMContext,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    category_service: FromDishka[CategoryService],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     await callback.answer()
 
@@ -123,12 +119,12 @@ async def retrieve_category_handler(
 async def create_update_category_handler(
     callback: CallbackQuery,
     callback_data: CategoryCallbackFactory,
-    keyboard_generator: KeyboardGenerator,
     state: FSMContext,
-    settings: Dynaconf,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    settings: FromDishka[Dynaconf],
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     await callback.answer()
 
@@ -155,12 +151,12 @@ async def create_update_category_handler(
 async def create_update_category_name_handler(
     event: Message | CallbackQuery,
     state: FSMContext,
-    category_validator: CategoryValidator,
-    keyboard_generator: KeyboardGenerator,
-    message_service: MessageService,
-    state_service: StateService,
-    base_dir: Path,
-    _: Locale,
+    category_validator: FromDishka[CategoryValidator],
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    base_dir: FromDishka[Path],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     if isinstance(event, CallbackQuery):
         await event.answer()
@@ -230,12 +226,12 @@ async def create_update_category_name_handler(
 async def create_update_category_templates_file_handler(
     event: Message | CallbackQuery,
     state: FSMContext,
-    category_validator: CategoryValidator,
-    keyboard_generator: KeyboardGenerator,
-    message_service: MessageService,
-    state_service: StateService,
-    base_dir: Path,
-    _: Locale,
+    category_validator: FromDishka[CategoryValidator],
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    base_dir: FromDishka[Path],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     if isinstance(event, CallbackQuery):
         await event.answer()
@@ -292,12 +288,12 @@ async def create_update_category_templates_file_handler(
 async def create_update_category_alarm_file_handler(
     event: Message | CallbackQuery,
     state: FSMContext,
-    category_validator: CategoryValidator,
-    keyboard_generator: KeyboardGenerator,
-    message_service: MessageService,
-    state_service: StateService,
-    base_dir: Path,
-    _: Locale,
+    category_validator: FromDishka[CategoryValidator],
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    base_dir: FromDishka[Path],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     if isinstance(event, CallbackQuery):
         await event.answer()
@@ -354,12 +350,12 @@ async def create_update_category_alarm_file_handler(
 async def create_update_category_stand_down_file_handler(
     event: Message | CallbackQuery,
     state: FSMContext,
-    category_validator: CategoryValidator,
-    keyboard_generator: KeyboardGenerator,
-    message_service: MessageService,
-    state_service: StateService,
-    base_dir: Path,
-    _: Locale,
+    category_validator: FromDishka[CategoryValidator],
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    base_dir: FromDishka[Path],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     if isinstance(event, CallbackQuery):
         await event.answer()
@@ -416,12 +412,12 @@ async def create_update_category_stand_down_file_handler(
 async def create_update_category_command_file_handler(
     event: Message | CallbackQuery,
     state: FSMContext,
-    category_validator: CategoryValidator,
-    category_service: CategoryService,
-    keyboard_generator: KeyboardGenerator,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    category_validator: FromDishka[CategoryValidator],
+    category_service: FromDishka[CategoryService],
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     if isinstance(event, CallbackQuery):
         await event.answer()
@@ -471,10 +467,10 @@ async def create_update_category_command_file_handler(
 async def remove_category_request_handler(
     callback: CallbackQuery,
     state: FSMContext,
-    keyboard_generator: KeyboardGenerator,
-    message_service: MessageService,
-    state_service: StateService,
-    _: Locale,
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     await callback.answer()
 
@@ -498,12 +494,11 @@ async def remove_category_request_handler(
 async def remove_category_handler(
     callback: CallbackQuery,
     state: FSMContext,
-    category_service: CategoryService,
-    users: UsersSchema,
-    user_service: UserService,
-    message_service: MessageService,
-    keyboard_generator: KeyboardGenerator,
-    _: Locale,
+    category_service: FromDishka[CategoryService],
+    user_service: FromDishka[UserService],
+    message_service: FromDishka[MessageService],
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    _: FromDishka[LocaleFactory],
 ) -> None:
     await callback.answer()
 

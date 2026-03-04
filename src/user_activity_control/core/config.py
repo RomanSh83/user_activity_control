@@ -1,44 +1,30 @@
-from logging import Logger
 from pathlib import Path
 
-from dynaconf import Dynaconf
+from dynaconf import Dynaconf, Validator
 
-from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.infra.logger.project_logger import ProjectLogger
+from user_activity_control.infra.logger.project_logger_enums import ProjectLoggerLevelsEnum
 
 
-class Config(Singleton):
+class Config:
     base_dir = Path(__file__).resolve().parents[3]
-    users_config_dir = base_dir / "app_data" / "users_config"
-    strings_dir = base_dir / "app_data" / "strings"
-
     settings = Dynaconf(
         root_path=base_dir,
         environments=True,
         envvar_prefix="",
         settings_files=[(base_dir / "config" / "settings.yaml")],
+        validators=[
+            Validator("TELEGRAM_BOT_TOKEN", must_exist=True),
+            Validator("ADMIN_IDS", must_exist=True, is_type_of=list),
+            Validator("LANGUAGE", is_in=["ru", "en"], default="ru"),
+            Validator("LOG_DIR", default="logs"),
+            Validator("LOG_FILE", default="log.txt"),
+            Validator("LOG_MAX_FILE_SIZE", is_type_of=int, default=10),
+            Validator("LOG_BACKUP_COUNT", is_type_of=int, default=5),
+            Validator("PRE_REGISTERED_LOGGERS", is_type_of=list, default=["aiogram"]),
+            Validator("LOG_FILE", default="log.txt"),
+            Validator("LOG_LEVEL", is_in=ProjectLoggerLevelsEnum, default=ProjectLoggerLevelsEnum.ERROR),
+            Validator("PAGINATION_LIMIT", is_type_of=int, default=5),
+            Validator("MAX_CATEGORY_NAME_LENGTH", is_type_of=int, default=25),
+            Validator("MAX_YAML_FILESIZE", is_type_of=int, default=1),
+        ],
     )
-    logger = ProjectLogger(base_dir=base_dir, settings=settings)
-    admins = set(settings.ADMIN_IDS)
-
-
-def get_config() -> Config:
-    return Config()
-
-
-def get_settings() -> Dynaconf:
-    return Config.settings
-
-
-def get_base_dir() -> Path:
-    return Config.base_dir
-
-
-def get_admins() -> set[int]:
-    return Config.admins
-
-
-def get_logger(name: str | None = None) -> Logger:
-    if not name:
-        name = __name__
-    return Config.logger.get_logger(name=name)

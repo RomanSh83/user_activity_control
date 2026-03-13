@@ -22,6 +22,7 @@ from user_activity_control.bot_logic.schemas.category_schemas import (
     CategoryParamsUpdateSchema,
     CategorySchema,
 )
+from user_activity_control.bot_logic.schemas.strings_schemas import StringsItemSchema
 from user_activity_control.bot_logic.services.category_services import CategoryService
 from user_activity_control.bot_logic.services.user_services import UserService
 from user_activity_control.bot_logic.states.category_states import (
@@ -447,13 +448,14 @@ async def create_update_category_command_file_handler(
 
     if await state.get_state() == CreateCategoryStates.wait_command_file:
         category_service.create_category(
-            category=CategorySchema(category_id=category_id, **fsm_data["category_data"]), strings_data=strings_data
+            category=CategorySchema(category_id=category_id, **fsm_data["category_data"]),
+            strings_data=StringsItemSchema(**strings_data),
         )
     else:
         category_service.update_category(
             category_id=category_id,
             category_data=CategoryParamsUpdateSchema(**category_data),
-            strings_data=strings_data,
+            strings_data=StringsItemSchema(**strings_data),
         )
 
     await state_service.safe_clear(state=state)

@@ -16,5 +16,5 @@ class ChatUserFilter(BaseFilter):
         chat_id = str(message.chat.id) if hasattr(message, "chat") else None
 
         if user_id in users.root and chat_id and chat_id in users.root[user_id].chat_ids:
-            return {"user": UserSchema(user_id=user_id, **users.root[user_id])}
+            return {"user": UserSchema(user_id=user_id, **users.root[user_id].model_dump())}
         return False

@@ -5,12 +5,14 @@ from typing import Any
 import yaml
 
 from user_activity_control.bot_logic.enums.entity_enums import CategoryEnum, UsersEnum
+from user_activity_control.bot_logic.enums.strings_type_enums import StringsTypesEnum
 from user_activity_control.bot_logic.schemas.category_schemas import (
     CategoriesSchema,
     CategoryParamsSchema,
     CategoryParamsUpdateSchema,
     CategorySchema,
 )
+from user_activity_control.bot_logic.schemas.strings_schemas import StringsCollectionSchema, StringsItemSchema
 from user_activity_control.bot_logic.schemas.user_schemas import (
     UserParamsSchema,
     UserParamsUpdateSchema,
@@ -18,13 +20,13 @@ from user_activity_control.bot_logic.schemas.user_schemas import (
     UsersSchema,
 )
 from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.core.enums.enums import ProjectFoldersEnum, UsersConfigFilesEnum
+from user_activity_control.core.enums.enums import ProjectFoldersEnum, StringsFilesEnum, UsersConfigFilesEnum
 from user_activity_control.infra.logger.types import LoggerFactory
 
 
 class AppData(Singleton):
     def __init__(self, base_dir: Path, logger_factory: LoggerFactory):
-        self._logger_factory = logger_factory
+        self._logger = logger_factory(__name__)
         self._base_dir = base_dir
         self._strings_dir = self._get_strings_dir()
         self._users_file_path = self._get_users_file_path()
@@ -62,20 +64,27 @@ class AppData(Singleton):
         sorted_users_data = self._sort_users_dict(users_data)
         return UsersSchema.model_validate(sorted_users_data)
 
-    def _get_strings(self) -> dict[str, Any]:
-        strings: dict[str, dict[str, Any]] = {}
+    def _get_strings(self) -> StringsCollectionSchema:
+        strings: dict[str, Any] = {}
         for category_id in self.categories.root.keys():
             strings[category_id] = {}
-            yaml_dir = self._strings_dir / category_id
-            yaml_files = yaml_dir.glob("*.yaml")
-            for yaml_file in yaml_files:
-                key = yaml_file.stem
-                strings[category_id][key] = self._load_data_from_yaml(yaml_path=yaml_file)
-        return strings
+            strings_item_dir = self._strings_dir / category_id
+            for strings_file in StringsFilesEnum:
+                yaml_path = strings_item_dir / strings_file
+                strings_name = yaml_path.stem
+                yaml_data = self._load_data_from_yaml(yaml_path=yaml_path)
+                expected_type = dict if strings_file == StringsFilesEnum.TEMPLATES else list
+                if not isinstance(yaml_data, expected_type) or len(yaml_data) == 0:
+                    self._logger.warning(
+                        f"File {strings_file.value} for category ID: {category_id} contains incorrect data."
+                    )
+                    yaml_data = expected_type()
+                strings[category_id][strings_name] = yaml_data
+        return StringsCollectionSchema.model_validate(strings)
 
     def _clear_app_data_strings(self) -> None:
         if self._strings_dir.exists():
-            removing_dirs = {d for d in self._strings_dir.iterdir() if d.is_dir() and d.name not in self.strings}
+            removing_dirs = {d for d in self._strings_dir.iterdir() if d.is_dir() and d.name not in self.strings.root}
             for removing_dir in removing_dirs:
                 shutil.rmtree(removing_dir, ignore_errors=True)
 
@@ -93,11 +102,13 @@ class AppData(Singleton):
             yaml.dump(yaml_data, f, allow_unicode=True, sort_keys=False)
 
     def _save_strings_to_yaml(self, category_id: str) -> None:
-        for key in self.strings[category_id]:
-            self._save_to_yaml(
-                yaml_path=(self._strings_dir / category_id / f"{key}.yaml"),
-                yaml_data=self.strings[category_id][key],
-            )
+        for strings_name in StringsTypesEnum:
+            yaml_data = getattr(self.strings.root[category_id], strings_name)
+            if yaml_data:
+                self._save_to_yaml(
+                    yaml_path=(self._strings_dir / category_id / f"{strings_name.value}.yaml"),
+                    yaml_data=yaml_data,
+                )
 
     def _sort_categories(self) -> None:
         sorted_categories = sorted(self.categories.root.items(), key=lambda item: item[1].name)
@@ -145,16 +156,21 @@ class AppData(Singleton):
         self.categories.root.pop(category_id, None)
         self._save_categories_to_yaml()
 
-    def update_strings(self, category_id: str, strings_data: dict[str, Any]) -> None:
-        self.strings[category_id].update(strings_data)
+    def update_strings(self, category_id: str, strings_data: StringsItemSchema) -> None:
+        strings_update_data = strings_data.model_dump(exclude_none=True)
+        if not strings_update_data:
+            return
+        for key, value in strings_update_data.items():
+            setattr(self.strings.root[category_id], key, value)
         self._save_strings_to_yaml(category_id=category_id)
 
     def remove_strings(self, category_id: str) -> None:
+        self.strings.root.pop(category_id)
         removing_dir = self._strings_dir / category_id
         shutil.rmtree(removing_dir, ignore_errors=True)
 
-    def save_strings(self, category_id: str, strings_data: dict[str, Any]) -> None:
-        self.strings[category_id] = strings_data
+    def save_strings(self, category_id: str, strings_data: StringsItemSchema) -> None:
+        self.strings.root[category_id] = strings_data
         self._save_strings_to_yaml(category_id=category_id)
 
     def save_user(self, user: UserSchema) -> None:

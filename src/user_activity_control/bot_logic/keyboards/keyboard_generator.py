@@ -2,7 +2,8 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from user_activity_control.bot_logic.callback_classes.category_callbacks import CategoryCallbackFactory
-from user_activity_control.bot_logic.callback_classes.user_callbacks import UserCallbackFactory, UserUniqueReactions
+from user_activity_control.bot_logic.callback_classes.common_menu_callbacks import ToggleCallbackFactory
+from user_activity_control.bot_logic.callback_classes.user_callbacks import UserCallbackFactory
 from user_activity_control.bot_logic.enums.menu_enums import MenuActionEnum
 from user_activity_control.bot_logic.keyboards.common_menu_buttons import CommonMenuButtons
 from user_activity_control.bot_logic.schemas.category_schemas import CategorySchema
@@ -106,9 +107,31 @@ class KeyboardGenerator:
         return builder.as_markup()
 
     def get_add_edit_keyboard(
-        self, back_callback_str: str | None = None, skip_button: bool = False
+        self,
+        back_callback_str: str | None = None,
+        on_button: bool = False,
+        on_button_text: str | None = None,
+        off_button: bool = True,
+        off_button_text: str | None = None,
+        skip_button: bool = False,
     ) -> InlineKeyboardMarkup:
         builder = InlineKeyboardBuilder()
+
+        if on_button and on_button_text:
+            builder.row(
+                InlineKeyboardButton(
+                    text=self._(on_button_text),
+                    callback_data=ToggleCallbackFactory(is_on=True).pack(),
+                )
+            )
+
+        if off_button and off_button_text:
+            builder.row(
+                InlineKeyboardButton(
+                    text=self._(off_button_text),
+                    callback_data=ToggleCallbackFactory(is_on=False).pack(),
+                )
+            )
 
         if skip_button:
             self.common_buttons.get_skip_button(builder=builder)
@@ -192,41 +215,6 @@ class KeyboardGenerator:
         )
 
         self.common_buttons.get_previous_button(builder=builder, callback_str=back_callback_str)
-
-        self.common_buttons.get_exit_button(builder=builder)
-
-        return builder.as_markup()
-
-    def get_user_unique_reactions_keyboard(
-        self,
-        on_button: bool = True,
-        off_button: bool = True,
-        back_callback_str: str | None = None,
-        skip_button: bool = False,
-    ) -> InlineKeyboardMarkup:
-        builder = InlineKeyboardBuilder()
-
-        if on_button:
-            builder.row(
-                InlineKeyboardButton(
-                    text=self._("keyboard_unique_reactions_on_button"),
-                    callback_data=UserUniqueReactions().pack(),
-                )
-            )
-
-        if off_button:
-            builder.row(
-                InlineKeyboardButton(
-                    text=self._("keyboard_unique_reactions_off_button"),
-                    callback_data=UserUniqueReactions(is_enabled=False).pack(),
-                )
-            )
-
-        if skip_button:
-            self.common_buttons.get_skip_button(builder=builder)
-
-        if back_callback_str:
-            self.common_buttons.get_previous_button(builder=builder, callback_str=back_callback_str)
 
         self.common_buttons.get_exit_button(builder=builder)
 

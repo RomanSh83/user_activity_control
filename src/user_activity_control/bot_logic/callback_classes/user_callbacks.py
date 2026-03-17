@@ -10,7 +10,3 @@ class UserCallbackFactory(CallbackData, prefix="user"):  # type: ignore
     total: int | None = None
     by_previous_button: bool = False
     by_paginate_button: bool = False
-
-
-class UserUniqueReactions(CallbackData, prefix="user_unique_reactions"):  # type: ignore
-    is_enabled: bool = True

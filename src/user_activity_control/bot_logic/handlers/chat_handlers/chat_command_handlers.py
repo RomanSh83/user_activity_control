@@ -24,7 +24,7 @@ async def unique_chat_about_handler(
     if not user.unique_command_reactions:
         await message.answer(_("command_chat_about"))
         return
-    await user_activity_service.proceed_activity(message=message, user=user, is_command=True)
+    await user_activity_service.proceed_command_activity(message=message, user=user)
 
 
 @chat_command_router.message(Command(CommonCommandEnum.ABOUT), F.chat.type.in_({"group", "supergroup"}))

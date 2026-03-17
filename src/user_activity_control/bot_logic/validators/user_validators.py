@@ -44,14 +44,3 @@ class UserValidator:
             return None, self._("validator_inactivity_alert_delay_not_positive")
 
         return inactivity_alert_delay, None
-
-    async def validate_stand_down_delay(self, value: str) -> tuple[None, str] | tuple[int, None]:
-        try:
-            stand_down_delay = int(value)
-        except ValueError:
-            return None, self._("validator_stand_down_delay_invalid_format")
-
-        if stand_down_delay < 0:
-            return None, self._("validator_stand_down_delay_negative")
-
-        return stand_down_delay, None

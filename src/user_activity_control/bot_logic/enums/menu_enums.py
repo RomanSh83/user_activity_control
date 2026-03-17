@@ -3,6 +3,8 @@ from enum import Enum
 
 class MenuActionEnum(str, Enum):
     LIST = "list"
+    CHOICE_LIST = "choice_list"
+    RELATED_LIST = "related_list"
     CREATE = "create"
     RETRIEVE = "retrieve"
     UPDATE = "update"

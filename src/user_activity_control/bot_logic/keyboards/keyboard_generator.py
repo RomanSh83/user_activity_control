@@ -2,27 +2,21 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from user_activity_control.bot_logic.callback_classes.category_callbacks import CategoryCallbackFactory
-from user_activity_control.bot_logic.callback_classes.common_menu_callbacks import NavigatorCallbackFactory
-from user_activity_control.bot_logic.callback_classes.user_callbacks import UserCallbackFactory, UserUniqueReactions
+from user_activity_control.bot_logic.callback_classes.common_menu_callbacks import ToggleCallbackFactory
+from user_activity_control.bot_logic.callback_classes.user_callbacks import UserCallbackFactory
 from user_activity_control.bot_logic.enums.menu_enums import MenuActionEnum
 from user_activity_control.bot_logic.keyboards.common_menu_buttons import CommonMenuButtons
 from user_activity_control.bot_logic.schemas.category_schemas import CategorySchema
 from user_activity_control.bot_logic.schemas.user_schemas import UserSchema
-from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.core.config import get_logger
-from user_activity_control.infra.locale.locale_utils import get_translate_string
-
-logger = get_logger(__name__)
+from user_activity_control.infra.locale.types import LocaleFactory
+from user_activity_control.infra.logger.types import LoggerFactory
 
 
-class MenuButtons:
-    pass
-
-
-class KeyboardGenerator(Singleton):
-    def __init__(self):
-        self._ = get_translate_string
-        self.common_buttons = CommonMenuButtons
+class KeyboardGenerator:
+    def __init__(self, logger_factory: LoggerFactory, common_buttons: CommonMenuButtons, locale_factory: LocaleFactory):
+        self.logger = logger_factory(__name__)
+        self.common_buttons = common_buttons
+        self._ = locale_factory
 
     def get_admin_keyboard(self) -> InlineKeyboardMarkup:
         builder = InlineKeyboardBuilder()
@@ -43,24 +37,26 @@ class KeyboardGenerator(Singleton):
     def get_category_list_keyboard(
         self,
         categories: list[CategorySchema],
-        callback_data: NavigatorCallbackFactory,
+        callback_data: CategoryCallbackFactory,
         skip_button: bool = False,
         back_callback_str: str | None = None,
     ) -> InlineKeyboardMarkup:
         builder = InlineKeyboardBuilder()
         action = (
-            callback_data.from_action if callback_data.from_action == MenuActionEnum.CHOICE else MenuActionEnum.RETRIEVE
+            callback_data.action.CHOICE
+            if callback_data.action == MenuActionEnum.CHOICE_LIST
+            else MenuActionEnum.RETRIEVE
         )
         for category in categories:
             builder.button(
                 text=category.name.capitalize(),
-                callback_data=CategoryCallbackFactory(action=action, slug=category.slug),
+                callback_data=CategoryCallbackFactory(action=action, category_id=category.category_id),
             )
         builder.adjust(1)
 
         self.common_buttons.get_pagination_buttons(builder=builder, callback_data=callback_data)
 
-        if callback_data.from_action != MenuActionEnum.CHOICE:
+        if callback_data.action == MenuActionEnum.LIST:
             builder.row(
                 InlineKeyboardButton(
                     text=self._("keyboard_create_category_button"),
@@ -83,14 +79,24 @@ class KeyboardGenerator(Singleton):
 
         builder.row(
             InlineKeyboardButton(
+                text=self._("keyboard_list_category_users_button"),
+                callback_data=UserCallbackFactory(action=MenuActionEnum.RELATED_LIST).pack(),
+            )
+        )
+        builder.row(
+            InlineKeyboardButton(
                 text=self._("keyboard_update_category_button"),
-                callback_data=CategoryCallbackFactory(action=MenuActionEnum.UPDATE, slug=category.slug).pack(),
+                callback_data=CategoryCallbackFactory(
+                    action=MenuActionEnum.UPDATE, category_id=category.category_id
+                ).pack(),
             )
         )
         builder.row(
             InlineKeyboardButton(
                 text=self._("keyboard_remove_category_button"),
-                callback_data=CategoryCallbackFactory(action=MenuActionEnum.REMOVE, slug=category.slug).pack(),
+                callback_data=CategoryCallbackFactory(
+                    action=MenuActionEnum.REMOVE, category_id=category.category_id
+                ).pack(),
             )
         )
 
@@ -101,9 +107,31 @@ class KeyboardGenerator(Singleton):
         return builder.as_markup()
 
     def get_add_edit_keyboard(
-        self, back_callback_str: str | None = None, skip_button: bool = False
+        self,
+        back_callback_str: str | None = None,
+        on_button: bool = False,
+        on_button_text: str | None = None,
+        off_button: bool = True,
+        off_button_text: str | None = None,
+        skip_button: bool = False,
     ) -> InlineKeyboardMarkup:
         builder = InlineKeyboardBuilder()
+
+        if on_button and on_button_text:
+            builder.row(
+                InlineKeyboardButton(
+                    text=self._(on_button_text),
+                    callback_data=ToggleCallbackFactory(is_on=True).pack(),
+                )
+            )
+
+        if off_button and off_button_text:
+            builder.row(
+                InlineKeyboardButton(
+                    text=self._(off_button_text),
+                    callback_data=ToggleCallbackFactory(is_on=False).pack(),
+                )
+            )
 
         if skip_button:
             self.common_buttons.get_skip_button(builder=builder)
@@ -141,7 +169,7 @@ class KeyboardGenerator(Singleton):
     def get_user_list_keyboard(
         self,
         users: list[UserSchema],
-        callback_data: NavigatorCallbackFactory,
+        callback_data: UserCallbackFactory,
         back_callback_str: str | None = None,
     ) -> InlineKeyboardMarkup:
         builder = InlineKeyboardBuilder()
@@ -155,12 +183,13 @@ class KeyboardGenerator(Singleton):
 
         self.common_buttons.get_pagination_buttons(builder=builder, callback_data=callback_data)
 
-        builder.row(
-            InlineKeyboardButton(
-                text=self._("keyboard_create_user_button"),
-                callback_data=UserCallbackFactory(action=MenuActionEnum.CREATE).pack(),
+        if callback_data.action == MenuActionEnum.LIST:
+            builder.row(
+                InlineKeyboardButton(
+                    text=self._("keyboard_create_user_button"),
+                    callback_data=UserCallbackFactory(action=MenuActionEnum.CREATE).pack(),
+                )
             )
-        )
 
         if back_callback_str:
             self.common_buttons.get_previous_button(builder=builder, callback_str=back_callback_str)
@@ -186,41 +215,6 @@ class KeyboardGenerator(Singleton):
         )
 
         self.common_buttons.get_previous_button(builder=builder, callback_str=back_callback_str)
-
-        self.common_buttons.get_exit_button(builder=builder)
-
-        return builder.as_markup()
-
-    def get_user_unique_reactions_keyboard(
-        self,
-        on_button: bool = True,
-        off_button: bool = True,
-        back_callback_str: str | None = None,
-        skip_button: bool = False,
-    ) -> InlineKeyboardMarkup:
-        builder = InlineKeyboardBuilder()
-
-        if on_button:
-            builder.row(
-                InlineKeyboardButton(
-                    text=self._("keyboard_unique_reactions_on_button"),
-                    callback_data=UserUniqueReactions().pack(),
-                )
-            )
-
-        if off_button:
-            builder.row(
-                InlineKeyboardButton(
-                    text=self._("keyboard_unique_reactions_off_button"),
-                    callback_data=UserUniqueReactions(is_enabled=False).pack(),
-                )
-            )
-
-        if skip_button:
-            self.common_buttons.get_skip_button(builder=builder)
-
-        if back_callback_str:
-            self.common_buttons.get_previous_button(builder=builder, callback_str=back_callback_str)
 
         self.common_buttons.get_exit_button(builder=builder)
 

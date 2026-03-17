@@ -9,7 +9,7 @@ default:
   LANGUAGE: ru  # ru, en
 
   # Logger
-  LOG_DIR: log # log directory
+  LOG_DIR: logs # log directory
   LOG_FILE: log.txt # log filename
   LOG_MAX_FILE_SIZE: 10 # max log filesize (Mb)
   LOG_BACKUP_COUNT: 5

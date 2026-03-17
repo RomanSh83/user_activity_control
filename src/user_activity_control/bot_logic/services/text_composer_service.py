@@ -1,38 +1,39 @@
 import random
+from pathlib import Path
 
 from user_activity_control.bot_logic.enums.strings_type_enums import StringsTypesEnum
-from user_activity_control.bot_logic.schemas.control_user_schemas import ControlUserSchema
-from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.core.config import get_base_dir, get_categories, get_logger, get_strings
+from user_activity_control.bot_logic.schemas.strings_schemas import StringsCollectionSchema
+from user_activity_control.bot_logic.schemas.user_schemas import UserSchema
+from user_activity_control.core.enums.enums import ProjectFoldersEnum
+from user_activity_control.infra.logger.types import LoggerFactory
 
 
-class TextComposerService(Singleton):
-    def __init__(self):
-        self.logger = get_logger(__name__)
-        self.categories = get_categories()
-        self.strings_dir = get_base_dir() / "app_data" / "strings"
-        self.strings = get_strings()
+class TextComposerService:
+    def __init__(self, base_dir: Path, logger_factory: LoggerFactory, strings: StringsCollectionSchema):
+        self.logger = logger_factory(__name__)
+        self.strings_dir = base_dir / ProjectFoldersEnum.APP_DATA / ProjectFoldersEnum.STRINGS
+        self.strings = strings
 
-    def compose_text(self, control_user: ControlUserSchema, string_type: str) -> str | None:
-        category = control_user.category
+    def compose_text(self, user: UserSchema, string_type: StringsTypesEnum) -> str | None:
+        category = user.category
 
-        if (
-            category not in self.strings
-            or string_type not in self.strings[category]
-            or len(self.strings[category][string_type]) == 0
-        ):
+        if category not in self.strings.root:
             return None
 
-        text_body = random.choice(self.strings[category][string_type])
+        current_strings = getattr(self.strings.root[category], string_type, [])
+        templates = getattr(self.strings.root[category], StringsTypesEnum.TEMPLATES, {})
+
+        if len(current_strings) == 0:
+            return None
+
+        text_body = random.choice(current_strings)
 
         if string_type == StringsTypesEnum.COMMAND:
             return text_body
 
-        if (
-            "templates" not in self.strings[category]
-            or f"{string_type}_template" not in self.strings[category]["templates"]
-        ):
+        template = templates.get(f"{string_type.value}_template")
+
+        if not template:
             return None
 
-        template = self.strings[category]["templates"][f"{string_type}_template"]
         return template.format(text_body=text_body)

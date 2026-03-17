@@ -7,16 +7,17 @@ class EntityEnum(str, Enum):
 
 
 class CategoryEnum(str, Enum):
-    SLUG = "slug"
+    CATEGORY_ID = "category_id"
     NAME = "name"
 
 
-class UserSettingsEnum(str, Enum):
+class UsersEnum(str, Enum):
     USER_ID = "user_id"
     CATEGORY = "category"
     CHAT_IDS = "chat_ids"
+    ALERT_REACTIONS = "alert_reactions"
     INACTIVITY_ALERT_DELAY = "inactivity_alert_delay"
-    STAND_DOWN_DELAY = "stand_down_delay"
+    STAND_DOWN_REACTIONS = "stand_down_reactions"
     UNIQUE_COMMAND_REACTION = "unique_command_reactions"
 
 

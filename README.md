@@ -1,4 +1,4 @@
-# User Activity Control Telegram Bot v.0.2.0
+# User Activity Control Telegram Bot v.0.3.0
 
 Приложение User Activity Control Bot представляет из себя шуточный Telegram Bot,
 который позволяет публиковать различные реакции на активность разных групп пользователей
@@ -21,8 +21,6 @@ https://docs.astral.sh/uv/getting-started/installation/
 
 
 ### Конфигурации
-
-В данной версии файлы user_types.yaml, users_settings.yaml, а также строки реакций необходимо заполнить вручную
 
 1. Перейдите в каталог ./config
 2. Создайте файл `settings.yaml` из файла `settings.yaml.example`

@@ -5,18 +5,15 @@ from pathlib import Path
 
 from dynaconf import Dynaconf
 
-from user_activity_control.core.base.singleton import Singleton
-from user_activity_control.infra.logger.project_logger_enums import ProjectLoggerLevelsEnum
 
-
-class ProjectLogger(Singleton):
+class ProjectLogger:
     def __init__(self, base_dir: Path, settings: Dynaconf) -> None:
         self.log_dir = base_dir / settings.LOG_DIR
         self.log_file = settings.LOG_FILE
         self.log_max_file_size = settings.LOG_MAX_FILE_SIZE * 1024 * 1024
         self.log_backup_count = settings.LOG_BACKUP_COUNT
         self.pre_registered_loggers = settings.PRE_REGISTERED_LOGGERS
-        self.logging_level = self._get_logging_level(settings=settings)
+        self.logging_level = settings.LOG_LEVEL
 
         self._make_log_dir(log_dir=self.log_dir)
 
@@ -26,14 +23,6 @@ class ProjectLogger(Singleton):
     @staticmethod
     def _make_log_dir(log_dir: Path) -> None:
         log_dir.mkdir(parents=True, exist_ok=True)
-
-    @staticmethod
-    def _get_logging_level(settings: Dynaconf):
-        return (
-            settings.LOG_LEVEL.upper()
-            if hasattr(settings, "LOG_LEVEL") and settings.LOG_LEVEL in ProjectLoggerLevelsEnum
-            else ProjectLoggerLevelsEnum.ERROR
-        )
 
     def _get_formatter(self) -> logging.Formatter:
         return logging.Formatter(
@@ -58,7 +47,7 @@ class ProjectLogger(Singleton):
         handler.setFormatter(self._get_formatter())
         return handler
 
-    def get_logger(self, name: str | None) -> logging.Logger:
+    def get_logger(self, name: str) -> logging.Logger:
         logger = logging.getLogger(name)
         if not logger.hasHandlers():
             logger.setLevel(self.logging_level)

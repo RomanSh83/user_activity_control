@@ -13,9 +13,13 @@ class SkipMenuCallbackFactory(CallbackData, prefix="skip_menu"):  # type: ignore
     pass
 
 
-class NoopCallbackFactory(CallbackData, prefix="noop_menu"):  # type: ignore
+class ConfirmMenuCallbackFactory(CallbackData, prefix="confirm_menu"):  # type: ignore
     pass
 
 
-class ConfirmMenuCallbackFactory(CallbackData, prefix="confirm_menu"):  # type: ignore
+class ToggleCallbackFactory(CallbackData, prefix="toggle_menu"):  # type: ignore
+    is_on: bool
+
+
+class NoopCallbackFactory(CallbackData, prefix="noop_menu"):  # type: ignore
     pass

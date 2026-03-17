@@ -19,5 +19,4 @@ async def user_activity_handler(
     if isinstance(event, CallbackQuery):
         message = event.message
         await event.answer()
-
     await user_activity_service.proceed_activity(message=message, user=user)

@@ -1,3 +1,5 @@
+from typing import Any
+
 from aiogram import F, Router
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
@@ -9,8 +11,9 @@ from user_activity_control.bot_logic.callback_classes.category_callbacks import 
 from user_activity_control.bot_logic.callback_classes.common_menu_callbacks import (
     ConfirmMenuCallbackFactory,
     SkipMenuCallbackFactory,
+    ToggleCallbackFactory,
 )
-from user_activity_control.bot_logic.callback_classes.user_callbacks import UserCallbackFactory, UserUniqueReactions
+from user_activity_control.bot_logic.callback_classes.user_callbacks import UserCallbackFactory
 from user_activity_control.bot_logic.enums.entity_enums import UsersEnum
 from user_activity_control.bot_logic.enums.menu_enums import MenuActionEnum
 from user_activity_control.bot_logic.filters.permission_filters import AdminFilter
@@ -111,8 +114,9 @@ async def retrieve_user_handler(
             user_id=user.user_id,
             category_name=category.name,
             chat_ids=", ".join(user.chat_ids),
+            alert_reactions=user.alert_reactions,
             inactivity_alert_delay=user.inactivity_alert_delay,
-            stand_down_delay=user.stand_down_delay,
+            stand_down_reactions=user.stand_down_reactions,
             unique_command_reactions=user.unique_command_reactions,
         ),
         reply_markup=keyboard_generator.get_user_retrieve_keyboard(user=user, back_callback_str=back_callback_str),
@@ -168,6 +172,7 @@ async def create_update_user_category_request_handler(
             await message_service.send_message(event=event, state=state, text=validate_error_text, reply_markup=kb)
             return
         user_data = {UsersEnum.USER_ID: user_id}
+    await state.update_data(user_data=user_data)
 
     if not len(categories.root):
         await message_service.send_message(
@@ -202,7 +207,6 @@ async def create_update_user_category_request_handler(
         skip_button=skip_button,
     )
 
-    await state.update_data(user_data=user_data)
     await state.set_state(new_state)
 
     await message_service.send_message(event=event, state=state, text=text, reply_markup=kb)
@@ -227,10 +231,10 @@ async def create_update_user_category_handler(
     back_callback_str = await state_service.pull_previous_callback(state=state)
 
     fsm_data = await state.get_data()
-    user_data = fsm_data["user_data"]
 
     if isinstance(callback_data, CategoryCallbackFactory):
-        user_data[UsersEnum.CATEGORY] = callback_data.category_id
+        fsm_data["user_data"][UsersEnum.CATEGORY] = callback_data.category_id
+        await state.update_data(user_data=fsm_data["user_data"])
 
     if await state.get_state() == CreateUserStates.wait_category:
         text = _("admin_user_create_chat_ids")
@@ -245,7 +249,6 @@ async def create_update_user_category_handler(
 
     kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=skip_button)
 
-    await state.update_data(user_data=user_data)
     await state.set_state(new_state)
 
     await message_service.send_message(event=callback, state=state, text=text, reply_markup=kb)
@@ -268,29 +271,105 @@ async def create_update_user_chat_ids_handler(
     back_callback_str = await state_service.pull_previous_callback(state=state)
 
     fsm_data = await state.get_data()
-    user_data = fsm_data["user_data"]
 
     if await state.get_state() == CreateUserStates.wait_chat_ids:
-        text = _("admin_user_create_inactivity_alert_delay")
+        text = _("admin_user_create_alert_reactions")
         skip_button = False
-        new_state = CreateUserStates.wait_inactivity_alert_delay
+        on_button = True
+        off_button = True
+        new_state = CreateUserStates.wait_alert_reactions
 
     else:
         user = UserSchema(**fsm_data["user"])
-        text = _("admin_user_update_inactivity_alert_delay", alert_delay=user.inactivity_alert_delay)
+        text = _("admin_user_update_alert_reactions", alert_reactions=user.alert_reactions)
         skip_button = True
-        new_state = UpdateUserStates.wait_inactivity_alert_delay
+        on_button = not user.alert_reactions
+        off_button = user.alert_reactions
+        new_state = UpdateUserStates.wait_alert_reactions
 
-    kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=skip_button)
+    kb = keyboard_generator.get_add_edit_keyboard(
+        back_callback_str=back_callback_str,
+        on_button=on_button,
+        on_button_text="keyboard_reactions_on_button",
+        off_button=off_button,
+        off_button_text="keyboard_reactions_off_button",
+        skip_button=skip_button,
+    )
 
     if isinstance(event, Message):
         chat_ids, validate_error_text = await user_validator.validate_chat_ids(value=event.text)
         if validate_error_text:
-            await message_service.send_message(event=event, state=state, text=validate_error_text, reply_markup=kb)
+            await message_service.send_message(
+                event=event,
+                state=state,
+                text=validate_error_text,
+                reply_markup=keyboard_generator.get_add_edit_keyboard(
+                    back_callback_str=back_callback_str, skip_button=skip_button
+                ),
+            )
             return
-        user_data[UsersEnum.CHAT_IDS] = chat_ids
+        fsm_data["user_data"][UsersEnum.CHAT_IDS] = chat_ids
+        await state.update_data(user_data=fsm_data["user_data"])
 
-    await state.update_data(user_data=user_data)
+    await state.set_state(new_state)
+
+    await message_service.send_message(event=event, state=state, text=text, reply_markup=kb)
+
+
+@admin_user_router.callback_query(SkipMenuCallbackFactory.filter(), StateFilter(UpdateUserStates.wait_alert_reactions))
+@admin_user_router.callback_query(
+    ToggleCallbackFactory.filter(),
+    StateFilter(CreateUserStates.wait_alert_reactions, UpdateUserStates.wait_alert_reactions),
+)
+async def create_update_user_alert_reactions_handler(
+    event: CallbackQuery,
+    callback_data: SkipMenuCallbackFactory | ToggleCallbackFactory,
+    state: FSMContext,
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
+) -> None:
+    await event.answer()
+
+    back_callback_str = await state_service.pull_previous_callback(state=state)
+
+    fsm_data = await state.get_data()
+
+    if isinstance(callback_data, ToggleCallbackFactory):
+        fsm_data["user_data"][UsersEnum.ALERT_REACTIONS] = callback_data.is_on
+        if not callback_data.is_on:
+            fsm_data["user_data"][UsersEnum.INACTIVITY_ALERT_DELAY] = 0
+            fsm_data["user_data"][UsersEnum.STAND_DOWN_REACTIONS] = False
+        await state.update_data(user_data=fsm_data["user_data"])
+
+    if (isinstance(callback_data, ToggleCallbackFactory) and not callback_data.is_on) or (
+        isinstance(callback_data, SkipMenuCallbackFactory)
+        and not fsm_data.get("user", {}).get(UsersEnum.ALERT_REACTIONS)
+    ):
+        await _proceed_unique_command_reactions_request(
+            event=event,
+            state=state,
+            keyboard_generator=keyboard_generator,
+            message_service=message_service,
+            _=_,
+            fsm_data=fsm_data,
+            back_callback_str=back_callback_str,
+        )
+        return
+
+    if await state.get_state() == CreateUserStates.wait_alert_reactions:
+        text = _("admin_user_create_inactivity_alert_delay")
+        skip_button = False
+        new_state = CreateUserStates.wait_inactivity_alert_delay
+    else:
+        user = UserSchema(**fsm_data["user"])
+        text = _("admin_user_update_inactivity_alert_delay", inactivity_alert_delay=user.inactivity_alert_delay)
+        skip_button = False if user.inactivity_alert_delay == 0 else True
+        new_state = UpdateUserStates.wait_inactivity_alert_delay
+
+    kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=skip_button)
+
     await state.set_state(new_state)
 
     await message_service.send_message(event=event, state=state, text=text, reply_markup=kb)
@@ -317,97 +396,137 @@ async def create_update_user_inactivity_alert_delay_handler(
     back_callback_str = await state_service.pull_previous_callback(state=state)
 
     fsm_data = await state.get_data()
-    user_data = fsm_data["user_data"]
 
     if await state.get_state() == CreateUserStates.wait_inactivity_alert_delay:
-        text = _("admin_user_create_stand_down_delay")
+        text = _("admin_user_create_stand_down_reactions")
         skip_button = False
-        new_state = CreateUserStates.wait_stand_down_delay
+        on_button = True
+        off_button = True
+        new_state = CreateUserStates.wait_stand_down_reactions
 
     else:
         user = UserSchema(**fsm_data["user"])
-        text = _("admin_user_update_stand_down_delay", stand_down_delay=user.stand_down_delay)
+        text = _("admin_user_update_stand_down_reactions", stand_down_reactions=user.stand_down_reactions)
         skip_button = True
-        new_state = UpdateUserStates.wait_stand_down_delay
+        on_button = not user.stand_down_reactions
+        off_button = user.stand_down_reactions
+        new_state = UpdateUserStates.wait_stand_down_reactions
 
-    kb = keyboard_generator.get_add_edit_keyboard(back_callback_str=back_callback_str, skip_button=skip_button)
+    kb = keyboard_generator.get_add_edit_keyboard(
+        back_callback_str=back_callback_str,
+        on_button=on_button,
+        on_button_text="keyboard_reactions_on_button",
+        off_button=off_button,
+        off_button_text="keyboard_reactions_off_button",
+        skip_button=skip_button,
+    )
 
     if isinstance(event, Message):
         inactivity_alert_delay, validate_error_text = await user_validator.validate_inactivity_alert_delay(
             value=event.text
         )
         if validate_error_text:
-            await message_service.send_message(event=event, state=state, text=validate_error_text, reply_markup=kb)
-            return
-        user_data[UsersEnum.INACTIVITY_ALERT_DELAY] = inactivity_alert_delay
-
-    await state.update_data(user_data=user_data)
-    await state.set_state(new_state)
-
-    await message_service.send_message(event=event, state=state, text=text, reply_markup=kb)
-
-
-@admin_user_router.message(StateFilter(CreateUserStates.wait_stand_down_delay, UpdateUserStates.wait_stand_down_delay))
-@admin_user_router.callback_query(SkipMenuCallbackFactory.filter(), StateFilter(UpdateUserStates.wait_stand_down_delay))
-async def create_update_user_stand_down_delay_handler(
-    event: Message | CallbackQuery,
-    state: FSMContext,
-    keyboard_generator: FromDishka[KeyboardGenerator],
-    user_validator: FromDishka[UserValidator],
-    message_service: FromDishka[MessageService],
-    state_service: FromDishka[StateService],
-    _: FromDishka[LocaleFactory],
-) -> None:
-    if isinstance(event, CallbackQuery):
-        await event.answer()
-
-    back_callback_str = await state_service.pull_previous_callback(state=state)
-
-    fsm_data = await state.get_data()
-    user_data = fsm_data["user_data"]
-
-    if await state.get_state() == CreateUserStates.wait_stand_down_delay:
-        text = _("admin_user_create_unique_command_reactions")
-        skip_button = False
-        kb = keyboard_generator.get_user_unique_reactions_keyboard(
-            back_callback_str=back_callback_str, skip_button=skip_button
-        )
-        new_state = CreateUserStates.wait_unique_command_reactions
-
-    else:
-        user = UserSchema(**fsm_data["user"])
-        text = _("admin_user_update_unique_command_reactions", unique_command_reactions=user.unique_command_reactions)
-        skip_button = True
-        kb = keyboard_generator.get_user_unique_reactions_keyboard(
-            back_callback_str=back_callback_str,
-            on_button=not user.unique_command_reactions,
-            off_button=user.unique_command_reactions,
-            skip_button=skip_button,
-        )
-        new_state = UpdateUserStates.wait_unique_command_reactions
-
-    if isinstance(event, Message):
-        stand_down_delay, validate_error_text = await user_validator.validate_stand_down_delay(value=event.text)
-        if validate_error_text:
             await message_service.send_message(
                 event=event,
                 state=state,
                 text=validate_error_text,
                 reply_markup=keyboard_generator.get_add_edit_keyboard(
-                    back_callback_str=back_callback_str, skip_button=skip_button
+                    back_callback_str=back_callback_str,
+                    skip_button=True
+                    if await state.get_state() == UpdateUserStates.wait_inactivity_alert_delay
+                    and fsm_data.get("user", {}).get(UsersEnum.INACTIVITY_ALERT_DELAY) != 0
+                    else False,
                 ),
             )
             return
-        user_data[UsersEnum.STAND_DOWN_DELAY] = stand_down_delay
+        fsm_data["user_data"][UsersEnum.INACTIVITY_ALERT_DELAY] = inactivity_alert_delay
+        await state.update_data(user_data=fsm_data["user_data"])
 
-    await state.update_data(user_data=user_data)
     await state.set_state(new_state)
 
     await message_service.send_message(event=event, state=state, text=text, reply_markup=kb)
 
 
 @admin_user_router.callback_query(
-    UserUniqueReactions.filter(),
+    SkipMenuCallbackFactory.filter(), StateFilter(UpdateUserStates.wait_stand_down_reactions)
+)
+@admin_user_router.callback_query(
+    ToggleCallbackFactory.filter(),
+    StateFilter(CreateUserStates.wait_stand_down_reactions, UpdateUserStates.wait_stand_down_reactions),
+)
+async def create_update_user_stand_down_reactions_handler(
+    event: CallbackQuery,
+    callback_data: SkipMenuCallbackFactory | ToggleCallbackFactory,
+    state: FSMContext,
+    keyboard_generator: FromDishka[KeyboardGenerator],
+    message_service: FromDishka[MessageService],
+    state_service: FromDishka[StateService],
+    _: FromDishka[LocaleFactory],
+) -> None:
+    await event.answer()
+
+    back_callback_str = await state_service.pull_previous_callback(state=state)
+
+    fsm_data = await state.get_data()
+
+    if isinstance(callback_data, ToggleCallbackFactory):
+        fsm_data["user_data"][UsersEnum.STAND_DOWN_REACTIONS] = callback_data.is_on
+        await state.update_data(user_data=fsm_data["user_data"])
+
+    await _proceed_unique_command_reactions_request(
+        event=event,
+        state=state,
+        keyboard_generator=keyboard_generator,
+        message_service=message_service,
+        _=_,
+        fsm_data=fsm_data,
+        back_callback_str=back_callback_str,
+    )
+
+
+async def _proceed_unique_command_reactions_request(
+    event: CallbackQuery,
+    state: FSMContext,
+    keyboard_generator: KeyboardGenerator,
+    message_service: MessageService,
+    _: LocaleFactory,
+    fsm_data: dict[str, Any],
+    back_callback_str: str,
+):
+    if (
+        await state.get_state() == CreateUserStates.wait_stand_down_reactions
+        or await state.get_state() == CreateUserStates.wait_alert_reactions
+    ):
+        text = _("admin_user_create_unique_command_reactions")
+        skip_button = False
+        on_button = True
+        off_button = True
+        new_state = CreateUserStates.wait_unique_command_reactions
+
+    else:
+        user = UserSchema(**fsm_data["user"])
+        text = _("admin_user_update_unique_command_reactions", unique_command_reactions=user.unique_command_reactions)
+        skip_button = True
+        on_button = not user.unique_command_reactions
+        off_button = user.unique_command_reactions
+        new_state = UpdateUserStates.wait_unique_command_reactions
+
+    kb = keyboard_generator.get_add_edit_keyboard(
+        back_callback_str=back_callback_str,
+        on_button=on_button,
+        on_button_text="keyboard_reactions_on_button",
+        off_button=off_button,
+        off_button_text="keyboard_reactions_off_button",
+        skip_button=skip_button,
+    )
+
+    await state.set_state(new_state)
+
+    await message_service.send_message(event=event, state=state, text=text, reply_markup=kb)
+
+
+@admin_user_router.callback_query(
+    ToggleCallbackFactory.filter(),
     StateFilter(CreateUserStates.wait_unique_command_reactions, UpdateUserStates.wait_unique_command_reactions),
 )
 @admin_user_router.callback_query(
@@ -415,7 +534,7 @@ async def create_update_user_stand_down_delay_handler(
 )
 async def create_update_user_unique_command_reactions_handler(
     callback: CallbackQuery,
-    callback_data: UserUniqueReactions,
+    callback_data: ToggleCallbackFactory | SkipMenuCallbackFactory,
     state: FSMContext,
     keyboard_generator: FromDishka[KeyboardGenerator],
     user_service: FromDishka[UserService],
@@ -428,8 +547,8 @@ async def create_update_user_unique_command_reactions_handler(
     fsm_data = await state.get_data()
     user_data = fsm_data["user_data"]
 
-    if isinstance(callback_data, UserUniqueReactions):
-        user_data[UsersEnum.UNIQUE_COMMAND_REACTION] = callback_data.is_enabled
+    if isinstance(callback_data, ToggleCallbackFactory):
+        user_data[UsersEnum.UNIQUE_COMMAND_REACTION] = callback_data.is_on
 
     if await state.get_state() == CreateUserStates.wait_unique_command_reactions:
         text = _("admin_user_created_successfully", user_id=user_data[UsersEnum.USER_ID])

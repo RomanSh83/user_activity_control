@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import Any
 
 from dishka import Provider, Scope, provide
 
 from user_activity_control.bot_logic.schemas.category_schemas import CategoriesSchema
+from user_activity_control.bot_logic.schemas.strings_schemas import StringsCollectionSchema
 from user_activity_control.bot_logic.schemas.user_schemas import UsersSchema
 from user_activity_control.infra.app_data.app_data import AppData
 from user_activity_control.infra.logger.types import LoggerFactory
@@ -23,5 +23,5 @@ class AppDataProvider(Provider):
         return app_data.categories
 
     @provide(scope=Scope.APP)
-    def get_strings(self, app_data: AppData) -> dict[str, Any]:
+    def get_strings(self, app_data: AppData) -> StringsCollectionSchema:
         return app_data.strings

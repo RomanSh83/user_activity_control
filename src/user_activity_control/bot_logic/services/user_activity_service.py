@@ -12,13 +12,15 @@ from user_activity_control.infra.storage.in_memory_storage import ActivityStorag
 
 
 class UserActivityService:
-    def __init__(self, storage: ActivityStorage, text_composer: TextComposerService, logger_factory: LoggerFactory):
+    def __init__(
+        self, storage: ActivityStorage, text_composer: TextComposerService, logger_factory: LoggerFactory
+    ) -> None:
         self.storage = storage
         self.text_composer = text_composer
         self.logger = logger_factory(__name__)
 
     async def _send_delayed_message(self, message: Message, user: UserSchema, string_type: StringsTypesEnum) -> None:
-        await asyncio.sleep(user.stand_down_delay * 60)
+        await asyncio.sleep(user.inactivity_alert_delay * 60)
         await self._send_message(message=message, user=user, string_type=string_type)
 
     async def _send_message(self, message: Message, user: UserSchema, string_type: StringsTypesEnum) -> None:
@@ -30,7 +32,7 @@ class UserActivityService:
     async def _create_stand_down_task(
         self, message: Message, user: UserSchema, string_type: StringsTypesEnum
     ) -> asyncio.Task | None:
-        if user.stand_down_delay != 0:
+        if user.inactivity_alert_delay != 0:
             task = asyncio.create_task(
                 self._send_delayed_message(message=message, user=user, string_type=string_type),
             )
@@ -43,16 +45,23 @@ class UserActivityService:
             value={ActivityKeysEnum.ACTIVITY_TIMESTAMP: action_timestamp.timestamp(), ActivityKeysEnum.TASK: task},
         )
 
-    async def proceed_activity(self, message: Message, user: UserSchema, is_command: bool = False) -> None:
+    async def proceed_command_activity(self, message: Message, user: UserSchema) -> None:
+        self.logger.debug(msg=f"User {user.user_id}: Sending unique command reaction.")
+        await self._send_message(message=message, user=user, string_type=StringsTypesEnum.COMMAND)
+        await self.proceed_activity(message=message, user=user)
+
+    async def proceed_activity(self, message: Message, user: UserSchema) -> None:
+        # если сообщения о тревогах отключены, обработка не ведется
+        if not user.alert_reactions:
+            self.logger.debug(msg=f"User {user.user_id}: Activity ignored (reactions disabled).")
+            return
+
         storage_key = f"{user.user_id}:{message.chat.id}"
-        last_activity_data = self.storage.pull_data(key=storage_key)
+        last_activity_data = self.storage.pull_data(key=storage_key) or {}
+        task = last_activity_data.get(ActivityKeysEnum.TASK)
 
-        # Если нужно дать ответ на команду - даем ответ и далее обрабатываем по алгоритму активность
-        if is_command:
-            await self._send_message(message=message, user=user, string_type=StringsTypesEnum.COMMAND)
-
-        # Если в хранилище нет записей по активностям данного пользователя, или
-        # время с последней активности больше заданного, отправляем сообщение о тревоге
+        # если обрабатывается первая активность или время с момента последней активности превысило установленный лимит
+        # отправляем сообщение о тревоге
         if (
             not last_activity_data
             or datetime.now(UTC).timestamp() - last_activity_data[ActivityKeysEnum.ACTIVITY_TIMESTAMP]
@@ -61,19 +70,16 @@ class UserActivityService:
             self.logger.debug(msg=f"User: {user.user_id}. New activity detected after timeout. Sending alert message.")
             await self._send_message(message=message, user=user, string_type=StringsTypesEnum.ALARM)
 
-        # Если время меньше выдержки и есть незавершенное задание на отбой - отменяем его
-        elif not last_activity_data[ActivityKeysEnum.TASK].done():
-            msg = f"User: {user.user_id}. New activity detected: current task cancelled, new task assigned."
-            self.logger.debug(msg=msg)
-            last_activity_data[ActivityKeysEnum.TASK].cancel(msg=msg)
-
-        # Если это первая активность и записей в хранилище нет или нет активной задачи на отбой:
-        if not last_activity_data or last_activity_data[ActivityKeysEnum.TASK].done():
+        # если сообщения об отбое включено
+        if user.stand_down_reactions:
+            # если существуют активные отложенные задачи на отправку сообщения - отменяем их
+            if task and not task.done():
+                msg = f"User {user.user_id}: Task replaced (new activity during timeout)."
+                self.logger.debug(msg=msg)
+                task.cancel(msg=msg)
             task = await self._create_stand_down_task(
                 message=message, user=user, string_type=StringsTypesEnum.STAND_DOWN
             )
-        else:  # иначе - оставляем активную задачу
-            task = last_activity_data[ActivityKeysEnum.TASK]
 
         # Обновляем информацию в хранилище
         await self._update_last_activity(action_timestamp=datetime.now(UTC), key=storage_key, task=task)
